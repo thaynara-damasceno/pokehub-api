@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: pokehub-api
+  datasource:
+    url: jdbc:postgresql://localhost:5432/pokemon
+    username: pokemon
+    password: pokemon
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
