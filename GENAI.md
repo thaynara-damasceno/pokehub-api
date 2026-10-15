@@ -107,13 +107,30 @@ Use clear test names that describe the behavior.
 
 ### Entry 02 - Story 01, Part 1B: pagination rules (TDD green)
 
-- **Goal:** implement the minimum in `ListPokemonService` to make the tests pass.
-- **Prompt used:** TODO
-- **What the AI generated:** TODO
-- **What I checked:** tests unchanged, only validation + delegation added.
-- **Problems found:** TODO
-- **What I changed / fixed:** TODO
-- **Lesson learned:** TODO
+- **Goal:** implement the minimum in `ListPokemonService.list` to make the failing tests pass,
+  without touching the tests.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode.
+- **Prompt used:**
+
+```text
+Implement ListPokemonService.list(int page, int size) so that all tests in ListPokemonServiceTest pass.
+Rules: page must be >= 0, size must be between 1 and MAX_PAGE_SIZE (inclusive); otherwise throw
+InvalidPaginationException with a clear message, without calling the gateway. Otherwise delegate to
+gateway.findPage(page, size). Do the minimum needed to make the tests pass and do not change the tests.
+```
+
+- **What the AI generated:** the validation in `ListPokemonService.list`: a negative page or a size
+  outside `1..MAX_PAGE_SIZE` throws `InvalidPaginationException` before the gateway is called;
+  valid requests are delegated to `gateway.findPage(page, size)`.
+- **What I checked:** `git diff --stat` showed only `ListPokemonService.java` modified (the tests
+  were untouched); the class still has no framework annotations; I ran `./mvnw clean verify`
+  myself and all `ListPokemonServiceTest` cases passed (red -> green).
+- **Problems found:** none. The agent did the minimum requested and respected the instruction not to
+  change the tests.
+- **What I changed / fixed:** nothing.
+- **Lesson learned:** the explicit constraint "do the minimum and do not change the tests" is what
+  keeps the TDD cycle honest. The red commit followed by the green commit is visible in the Git
+  history, so the work can be verified instead of just claimed.
 
 (Add one entry per relevant interaction.)
 
