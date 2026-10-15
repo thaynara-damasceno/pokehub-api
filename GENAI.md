@@ -45,16 +45,65 @@ Template for each entry:
 
 ### Entry 01 - Story 01, Part 1A: domain, ports and failing tests
 
-- **Goal:** create `Pokemon`, `PokemonPage`, ports and `ListPokemonService` skeleton, plus
-  the tests first (TDD red).
-- **Prompt used:** TODO paste the exact prompt.
-- **What the AI generated:** TODO
-- **What I checked:** no framework imports in domain/application, service without
-  annotations, tests fail for the right reason (`UnsupportedOperationException`),
-  gateway never called on invalid input.
-- **Problems found:** TODO (write "none" if none)
-- **What I changed / fixed:** TODO
-- **Lesson learned:** TODO
+- **Goal:** create the `Pokemon` and `PokemonPage` records, the pagination exception, the
+  `PokemonGateway` and `ListPokemonUseCase` ports, a `ListPokemonService` skeleton, and the
+  unit tests first (TDD red phase).
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode, with the project rules in
+  `.github/copilot-instructions.md`.
+- **Prompt used:**
+
+```text
+We are building a Spring Boot REST API (package com.thaynara.pokehub) following Clean Architecture and TDD.
+This is the first step of "User Story 01: list Pokémon with pagination". Do NOT use any Spring, JPA or
+Jackson annotation in the domain or application packages.
+
+Create these files:
+
+1. domain/model/Pokemon.java - a Java record: int id, String name, String spriteUrl,
+   List<String> types, int weight, List<String> abilities.
+2. domain/model/PokemonPage.java - a record: List<Pokemon> items, int page, int size, long totalElements,
+   with a method int totalPages() that returns ceil(totalElements / size) (0 when size is 0).
+3. domain/exception/InvalidPaginationException.java - a RuntimeException with a String message constructor.
+4. application/port/out/PokemonGateway.java - interface with: PokemonPage findPage(int page, int size);
+5. application/port/in/ListPokemonUseCase.java - interface with: PokemonPage list(int page, int size);
+6. application/usecase/ListPokemonService.java - implements ListPokemonUseCase, receives a PokemonGateway
+   in the constructor, has a package-private constant MAX_PAGE_SIZE = 50.
+   IMPORTANT: leave the list method body as `throw new UnsupportedOperationException();` (we are in TDD,
+   the tests must fail first). No framework annotations on this class.
+7. src/test/.../application/usecase/ListPokemonServiceTest.java - JUnit 5 + Mockito + AssertJ,
+   with @ExtendWith(MockitoExtension.class). Test cases:
+   - returns the page provided by the gateway (mock gateway.findPage(0, 20), assert the same page is
+     returned and the gateway was called once with 0 and 20);
+   - rejects a negative page with InvalidPaginationException and never calls the gateway;
+   - rejects size 0, -5 and 51 (parameterized test) with InvalidPaginationException and never calls
+     the gateway;
+   - accepts the boundaries: size 1 and size 50 (delegates to the gateway).
+Use clear test names that describe the behavior.
+```
+
+- **Control over the agent:** the agent asked for permission before running commands. I read
+  each command (for example a read-only `git status` and `ls` to explore the project) and
+  approved them one at a time ("Allow Once"). I did not grant permanent access to `git` or to
+  all commands, so it could not commit, push or delete anything on its own.
+- **What I checked:** no Spring/JPA/Jackson imports in `domain` or `application`; no
+  annotations on `ListPokemonService`; the `list` method still throws
+  `UnsupportedOperationException`; tests fail for the right reason and not because of a
+  compilation error; the gateway is never called when the input is invalid.
+- **What the AI generated:** all seven requested files: the `Pokemon` and `PokemonPage` records,
+  `InvalidPaginationException`, the `PokemonGateway` and `ListPokemonUseCase` ports, the
+  `ListPokemonService` skeleton (with `MAX_PAGE_SIZE = 50`, framework-free, `list` throwing
+  `UnsupportedOperationException`) and `ListPokemonServiceTest` with 7 test executions
+  (happy path, negative page, three invalid sizes, two boundary sizes). The agent also ran the
+  tests and reported the expected failure.
+- **Problems found:** none in this first pass. The output matched the contract in the prompt.
+  I did not rely on the agent's own summary: I confirmed it by running the tests myself (7 failures,
+  all caused by `UnsupportedOperationException`) and by grepping `domain` and `application` for
+  Spring, Jakarta and Jackson imports (no results).
+- **What I changed / fixed:** nothing; I accepted the generated code after reviewing it.
+- **Lesson learned:** stating the exact contract in the prompt (class names, fields, rules)
+  and the TDD constraint ("leave the method throwing, tests must fail first") kept the agent from
+  implementing ahead of the tests. Even when the first result is correct, I verify it
+  independently instead of trusting the tool's summary.
 
 ### Entry 02 - Story 01, Part 1B: pagination rules (TDD green)
 
