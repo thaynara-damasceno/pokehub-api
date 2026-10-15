@@ -463,6 +463,69 @@ of changing the test.
   explicit, the agent had nothing left to decide on its own, and the review reduced to verifying the diff
   and the security-sensitive handler.
 
+### Entry 08 - Story 01, Part 3C: security rules (TDD red/green)
+
+- **Goal:** define which routes are public and which are protected, test-first: the Pokémon listing, the
+  OpenAPI docs and the Swagger UI are public, the auth endpoints will be public, and everything else requires
+  authentication.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
+- **Prompts used:**
+
+```text
+Step 3C-a (TDD red phase): security rules for the API. Follow .github/copilot-instructions.md. Do NOT add or change
+any dependency, do NOT touch pom.xml, application.yaml or any existing class or test, and do NOT create any
+security configuration class yet (the tests must fail first against Spring Boot's default security).
+
+Create src/test/java/com/thaynara/pokehub/infrastructure/security/SecurityRulesTest.java using
+@SpringBootTest, @AutoConfigureMockMvc, @ActiveProfiles("test") and a @MockitoBean ListPokemonUseCase (so no
+real PokeAPI call is made; make it return an empty PokemonPage). Spring Boot 4 note: @AutoConfigureMockMvc is in
+org.springframework.boot.webmvc.test.autoconfigure and @MockitoBean in
+org.springframework.test.context.bean.override.mockito. If an import does not resolve, tell me instead of adding dependencies.
+Tests, all WITHOUT credentials:
+- GET /api/pokemon answers 200;
+- GET /v3/api-docs answers 200;
+- GET /swagger-ui/index.html answers 200;
+- POST /api/pokemon/1/sync answers 401 (this route does not exist yet; unauthenticated writes must be rejected
+  before routing, and must not be rejected with 403 because of CSRF);
+- GET /api/local-pokemon answers 401.
+Use clear test names that describe the behavior.
+```
+
+```text
+Step 3C-b (TDD green phase). Make SecurityRulesTest pass without changing any test, and keep all other tests green.
+Follow .github/copilot-instructions.md. Do not add dependencies, do not touch pom.xml, application.yaml, any test, or any
+class under domain, application or infrastructure/pokeapi.
+
+Design decisions (already fixed, do not change them):
+- Create infrastructure/security/SecurityConfig.java (@Configuration) exposing a SecurityFilterChain bean.
+- The API is stateless: disable CSRF and use session creation policy STATELESS.
+- Public routes: GET /api/pokemon/**, GET /v3/api-docs/**, GET /swagger-ui/**, GET /swagger-ui.html, and /api/auth/**
+  (any method; the auth endpoints will be created later).
+- Every other request requires authentication. Keep httpBasic() enabled for now as a placeholder (it will be
+  replaced when user registration and login are implemented); unauthenticated requests must answer 401.
+- Do not create users, password encoders or JWT classes in this step.
+Do the minimum needed. Run ./mvnw clean verify and report the result. If a test fails, tell me why instead of changing the test.
+```
+
+- **What the AI generated:** `SecurityRulesTest` with five MockMvc tests, and `SecurityConfig` with a stateless
+  `SecurityFilterChain` (CSRF disabled, the listed public routes, authentication required for everything
+  else, HTTP Basic as a placeholder).
+- **What I checked:** in the red run, four tests failed for the right reasons: the three public `GET`s
+  answered 401 instead of 200 (Spring Security protects everything by default) and the unauthenticated
+  `POST` answered 403 instead of 401, because the CSRF filter rejected it before authentication. After the
+  implementation I ran `./mvnw clean verify` myself: BUILD SUCCESS with 29 tests. `git diff --stat` showed no
+  existing file modified (no test, no `pom.xml`, no `application.yaml`), only the new `security` package, and
+  the `grep` for Spring, Jakarta and Jackson imports in `domain` and `application` returned nothing.
+- **Problems found:** none. The agent's summary matched my own run. One test (`GET /api/local-pokemon`
+  answers 401) was green from the start, because Spring denies everything by default. I kept it on purpose
+  as a guard test: it fails if a future configuration becomes too permissive.
+- **What I changed / fixed:** nothing.
+- **Lesson learned:** security rules are easy to specify as tests (which routes are public, which are
+  protected, and which status code each case returns). The red run exposed a detail I would have missed
+  by only reading the code: without disabling CSRF, an unauthenticated write returns 403, not 401. A test
+  that is green before the implementation is not proof of the new behavior; it is a guard, and I label it as
+  such.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
