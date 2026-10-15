@@ -18,7 +18,9 @@ task-management exercise requested in the technical interview.
 | Tool | What I used it for |
 |---|---|
 | GitHub Copilot (IntelliJ) | Code generation: models, adapters, mappers, test scaffolding |
-| TODO: other tools | TODO: describe honestly (e.g. chat assistant for planning and learning) |
+| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs 
+and explaining errors. Snippets it suggested were reviewed before use; code generation in the repository 
+was done with Copilot |
 
 ## 3. How I validate AI-generated code
 
@@ -208,7 +210,6 @@ Contract the tests must follow:
   pokeapi.co URLs, which must simply be ignored.
 Keep the same 8 test cases and names. The tests must still fail only because findPage is not implemented.
 ```
-
 After the fix I re-ran the tests: 8 tests red, all failing with `UnsupportedOperationException`, and
 I confirmed with `grep` that the stubs and the base URL follow the contract.
 - **Lesson learned:** when a prompt leaves a design decision open, the agent decides for me, and its
