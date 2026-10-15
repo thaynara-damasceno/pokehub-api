@@ -216,6 +216,64 @@ I confirmed with `grep` that the stubs and the base URL follow the contract.
   external URLs are used, error mapping) I now state the contract explicitly in the prompt, and I review
   the generated tests for hidden assumptions before implementing anything.
 
+### Entry 04 - Story 01, Part 2B: PokeAPI adapter implementation (TDD green)
+
+- **Goal:** implement `PokeApiPokemonGateway` so the eight failing tests pass, plus the Spring
+  configuration that wires the `RestClient` and the `PokemonGateway` beans.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
+- **Prompt used:**
+
+```text
+Step 2B of "User Story 01" (TDD green phase). Make all tests in PokeApiPokemonGatewayTest pass without
+changing them, following .github/copilot-instructions.md. Do not add dependencies.
+
+Design decisions (already fixed, do not change them):
+- The RestClient base URL is the API root including /api/v2 (https://pokeapi.co/api/v2 in production), so the
+  gateway uses relative paths: GET /pokemon?limit={size}&offset={page*size} and GET /pokemon/{name}.
+- The detail call uses the NAME from each list item. The gateway never follows the "url" field returned
+  by the PokeAPI.
+
+1. In infrastructure/pokeapi create package-private response records used only to deserialize PokeAPI JSON
+   (list response, list item, pokemon detail with sprites, types and abilities). Use Jackson annotations only
+   where needed (@JsonProperty for snake_case, @JsonIgnoreProperties(ignoreUnknown = true)). Note: this project
+   uses Spring Boot 4 / Jackson 3, so do not import com.fasterxml.jackson.databind; the annotations package
+   com.fasterxml.jackson.annotation is the correct one.
+2. Implement PokeApiPokemonGateway.findPage(page, size): fetch the list, then fetch every detail
+   concurrently using a virtual-thread executor (Executors.newVirtualThreadPerTaskExecutor()), keep the
+   original list order, and map to the domain Pokemon / PokemonPage. Types and abilities sorted by slot
+   (abilities include the hidden ones). weight is kept as returned by the PokeAPI.
+3. Wrap any RestClientException in PokemonProviderUnavailableException with a clear message. If a concurrent
+   detail call fails, unwrap the CompletionException so the caller receives PokemonProviderUnavailableException.
+4. The response records must NOT leak out of the infrastructure.pokeapi package.
+5. Create infrastructure/config/PokeApiConfig.java (@Configuration) that exposes a RestClient bean (base URL
+   and timeouts from properties, JdkClientHttpRequestFactory) and a PokemonGateway bean built with it.
+   Add to src/main/resources/application.yaml:
+   pokeapi.base-url: https://pokeapi.co/api/v2, pokeapi.connect-timeout-ms: 2000, pokeapi.read-timeout-ms: 5000.
+Do the minimum needed. Do not modify the tests.
+```
+
+- **What the AI generated:** the gateway (detail requests in parallel on virtual threads with the executor
+  closed by try-with-resources, results kept in list order, types and abilities sorted by slot,
+  provider errors translated to `PokemonProviderUnavailableException` with the original cause kept),
+  package-private response records, `PokeApiConfig` with the `RestClient` and `PokemonGateway` beans, and
+  the three `pokeapi.*` properties in `application.yaml`. The eight gateway tests passed.
+- **What I checked:** `git diff --stat` showed no test and no `pom.xml` changed; `grep` found no Spring,
+  Jakarta or Jackson imports in `domain` and `application`, and no `RestTemplate`, `WebClient`,
+  `Thread.sleep` or `System.out`; the PokeAPI URL exists only in `application.yaml`. I reviewed the code
+  against a checklist, with a chat assistant as a second reviewer: offset is `page * size`; the detail call
+  uses the name as a URI variable and never follows URLs returned by the API; all futures are created before
+  being joined in list order; the `CompletionException` is unwrapped; Jackson 3 packages are correct.
+- **Problems found:** green tests did not mean good design. (1) Unrequested complexity: the gateway read
+  the body as a `String` and parsed it with its own Jackson mapper, duplicating what `RestClient` already
+  does and adding a second error path. (2) Code quality: seven top-level records in one file, and a `url`
+  field in the list item that is never used. (3) Gaps not covered by tests, noted as follow-ups: `page * size`
+  can overflow `int` for absurd page numbers, and null `results` or `types` would throw a
+  `NullPointerException`.
+- **What I changed / fixed:** the refactor was done in a separate commit with the tests as a safety net
+  (see Entry 05).
+- **Lesson learned:** tests prove behavior, not design. After going green I review the diff for complexity
+  the agent added on its own, and I refactor with the tests protecting me.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
