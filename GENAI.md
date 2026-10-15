@@ -18,9 +18,7 @@ task-management exercise requested in the technical interview.
 | Tool | What I used it for |
 |---|---|
 | GitHub Copilot (IntelliJ) | Code generation: models, adapters, mappers, test scaffolding |
-| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs 
-and explaining errors. Snippets it suggested were reviewed before use; code generation in the repository 
-was done with Copilot |
+| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs and explaining errors. Snippets it suggested were reviewed before use; code generation in the repository was done with Copilot |
 
 ## 3. How I validate AI-generated code
 
@@ -37,13 +35,13 @@ was done with Copilot |
 
 Template for each entry:
 
-> **Step / goal:**
-> **Prompt used:** (exact text)
-> **What the AI generated:**
-> **What I checked:**
-> **Problems found:**
-> **What I changed / fixed:**
-> **Lesson learned:**
+- **Step / goal:**
+- **Prompt used:** (exact text)
+- **What the AI generated:**
+- **What I checked:**
+- **Problems found:**
+- **What I changed / fixed:**
+- **Lesson learned:**
 
 ### Entry 01 - Story 01, Part 1A: domain, ports and failing tests
 
@@ -186,9 +184,10 @@ Use clear test names that describe the behavior.
 - **Problems found:** a design gap. My prompt did not say how the adapter builds the detail URL or what the
   RestClient base URL is, so the agent filled the gap on its own. Its tests rewrote the `url` fields of
   the fixtures to point to WireMock and stubbed the detail calls by id (`/api/v2/pokemon/1/`). That would
-  have forced the adapter to follow URLs returned by an external service. I spotted it in
-  the review (a `replace(...)` of `https://pokeapi.co/api/v2` in the test) and not from the agent's summary,
-  which said everything was fine.
+  have forced the adapter to follow URLs returned by an external service. I did not get this from the
+  agent's summary, which said everything was fine: I found it by running a `grep` on the generated test
+  (it showed a `replace(...)` of `https://pokeapi.co/api/v2`) and reviewing the result with a chat
+  assistant as a second reviewer.
 - **What I changed / fixed:** I decided the design myself: the adapter builds `/pokemon/{name}` from the
   name in the list and never follows URLs from the response, so the configured base URL applies to
   every call. I sent a second prompt limited to the test code:
@@ -210,8 +209,10 @@ Contract the tests must follow:
   pokeapi.co URLs, which must simply be ignored.
 Keep the same 8 test cases and names. The tests must still fail only because findPage is not implemented.
 ```
+
 After the fix I re-ran the tests: 8 tests red, all failing with `UnsupportedOperationException`, and
 I confirmed with `grep` that the stubs and the base URL follow the contract.
+
 - **Lesson learned:** when a prompt leaves a design decision open, the agent decides for me, and its
   summary will not mention it. For anything that touches an integration boundary (base URL, how
   external URLs are used, error mapping) I now state the contract explicitly in the prompt, and I review
@@ -301,9 +302,9 @@ me why instead of working around it.
 - **What the AI generated:** the gateway without the manual Jackson parsing (the `RestClient` now
   deserializes the body into the response records) and the records grouped as nested types of a single
   `PokeApiResponses` class.
-- **What I checked:** `git diff --stat` (only files under `infrastructure/pokeapi`), a `grep` confirming
-  no `databind`, `JacksonException` or `JsonMapper` was left in `src/main/java`, and a full
-  `./mvnw clean verify`.
+- **What I checked:** `git status` showed that the refactor touched only `PokeApiPokemonGateway.java`
+  and `PokeApiResponses.java` under `infrastructure/pokeapi`, a `grep` confirming no `databind`,
+  `JacksonException` or `JsonMapper` was left in `src/main/java`, and a full `./mvnw clean verify`.
 - **Problems found:** the full build was red: 3 of the 8 gateway tests failed with
   `UnknownContentTypeException: no suitable HttpMessageConverter ... content type [application/octet-stream]`.
   The root cause was in the tests, not in the refactor. The WireMock stubs for the detail calls returned
@@ -327,6 +328,81 @@ me why instead of working around it.
   (status codes, headers, content type), and I verify them against the real API with `curl`. The refactor
   step also worked as designed: the tests acted as a safety net and exposed an incorrect assumption that
   the first implementation had masked.
+
+### Entry 06 - Story 01, Part 3A: web layer tests (TDD red) and a red for the wrong reason
+
+- **Goal:** create the web DTOs, a controller skeleton, an empty exception advice and the MockMvc tests
+  first (TDD red phase) for `GET /api/pokemon`.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
+- **Prompt used:**
+
+```text
+Step 3A of "User Story 01: list Pokémon with pagination" (TDD red phase). We are creating the web layer.
+Follow .github/copilot-instructions.md. Do NOT add or change any dependency in pom.xml, and do NOT create any
+security configuration yet (security gets its own step).
+
+Create these files in package com.thaynara.pokehub.infrastructure.web:
+
+1. PokemonResponse.java - record: int id, String name, String spriteUrl, List<String> types, int weight,
+   List<String> abilities. Fields only (no mapping method yet).
+2. PokemonPageResponse.java - record: List<PokemonResponse> items, int page, int size, long totalElements,
+   int totalPages. Fields only.
+3. PokemonController.java - @RestController, @RequestMapping("/api/pokemon"), constructor receives the
+   ListPokemonUseCase port (never ListPokemonService). One @GetMapping method
+   `PokemonPageResponse list(int page, int size)` with NO @RequestParam yet. IMPORTANT: its body must be
+   `throw new UnsupportedOperationException();` (the tests must fail first).
+4. GlobalExceptionHandler.java - an empty @RestControllerAdvice class, with no handler methods yet.
+5. src/test/.../infrastructure/web/PokemonControllerTest.java - JUnit 5 + AssertJ + MockMvc, using
+   @WebMvcTest(PokemonController.class), @AutoConfigureMockMvc(addFilters = false) (security is tested
+   separately) and a @MockitoBean ListPokemonUseCase. Note: this project uses Spring Boot 4, so do not use
+   @MockBean (removed); use @MockitoBean (org.springframework.test.context.bean.override.mockito) and the
+   Spring Boot 4 test packages (org.springframework.boot.webmvc.test.autoconfigure for @WebMvcTest and
+   @AutoConfigureMockMvc). If an import does not resolve, tell me instead of adding dependencies.
+   Contract the tests must verify:
+   - GET /api/pokemon with no parameters calls the use case with page 0 and size 20 and answers 200;
+   - GET /api/pokemon?page=2&size=10 calls the use case with 2 and 10;
+   - the 200 body has: items[] with id, name, spriteUrl, types, weight, abilities, plus page, size,
+     totalElements and totalPages (totalPages comes from PokemonPage.totalPages());
+   - an empty page answers 200 with items = [] and totalPages = 0;
+   - when the use case throws InvalidPaginationException("size must be between 1 and 50"), the answer is 400
+     with content type application/problem+json, status 400 and detail equal to the exception message;
+   - when the use case throws PokemonProviderUnavailableException with an internal message, the answer is
+     502 with content type application/problem+json, status 502 and detail exactly
+     "The Pokémon data provider is currently unavailable. Please try again later."; the internal exception
+     message must NOT appear anywhere in the body;
+   - GET /api/pokemon?page=abc answers 400 with content type application/problem+json and detail exactly
+     "Invalid value for parameter 'page'.".
+Use clear test names that describe the behavior.
+```
+
+- **What the AI generated:** the two response records, a controller skeleton that receives the
+  `ListPokemonUseCase` port and throws `UnsupportedOperationException`, an empty `@RestControllerAdvice`
+  and `PokemonControllerTest` with seven MockMvc tests. It used `@MockitoBean` and the Spring Boot 4 test
+  packages correctly, which I had named explicitly in the prompt.
+- **What I checked:** `pom.xml` untouched and only new files in `git status`; no `@MockBean` anywhere; no
+  Spring, Jakarta or Jackson imports in `domain` and `application`; I read the test against the contract
+  (JSON fields, `totalPages`, empty page, problem+json content type, and an assertion that the internal
+  exception message does not leak in the 502 body).
+- **Problems found:** the agent's summary said all seven tests were red "as expected", but four of them
+  were failing for the wrong reason: `IllegalStateException: Optional int parameter 'page' is present but
+  cannot be translated into a null value due to being declared as a primitive type`. The skeleton declared
+  `int page, int size` without `@RequestParam`, so Spring failed while resolving the arguments, before the
+  controller body was ever reached. The root cause was my prompt, which asked for "NO @RequestParam yet".
+  I found it by reading the failure messages of the test run (reviewed together with a chat assistant)
+  instead of trusting the summary.
+- **What I changed / fixed:** I corrected the skeleton myself with a one-line change per parameter,
+  `@RequestParam(defaultValue = "0") int page` and `@RequestParam(defaultValue = "20") int size`, and kept
+  the `UnsupportedOperationException` body. After that, the run showed seven red tests for the right
+  reasons: six `UnsupportedOperationException` and one `Content type not set` (Spring already answered
+  400 for `page=abc`, but without the problem+json body that the handler will produce).
+- **Improvements to the AI-generated tests:** after the fix I reviewed the generated tests and improved
+  them by hand before committing. I replaced the fully-qualified Hamcrest calls with static imports and
+  added an eighth test for a non-numeric `size` parameter (the agent had only covered `page`), which uses
+  the same handler. The final red run showed eight failing tests for the right reasons: six
+  `UnsupportedOperationException` and two `Content type not set`.
+- **Lesson learned:** a red test only proves something when it fails for the right reason. A TDD skeleton
+  has to be complete enough for the framework to route and bind the request, so the tests reach the
+  behavior under test. I always read the failure reasons, not just the red/green count.
 
 ## 5. Exercise: Task Management API
 
@@ -358,3 +434,9 @@ TODO
 - *How do you make sure AI-generated code respects your architecture?* TODO
 - *What would you not delegate to AI?* TODO
 - *What would you do differently with more time?* TODO
+- *Which AI tools did you use in this project, and why two?* I used GitHub Copilot in IntelliJ for code
+  generation, because it works directly on the repository and follows the rules in
+  `.github/copilot-instructions.md`. I used a chat assistant as a second reviewer: planning the steps,
+  drafting prompts, and reviewing diffs and test failures. The decisions were mine and I validated every
+  result by running the tests and reading the diff. Examples: the design gap in Entry 03, the stubs
+  without `Content-Type` in Entry 05 and the red-for-the-wrong-reason in Entry 06.
