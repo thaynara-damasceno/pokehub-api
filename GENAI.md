@@ -132,7 +132,89 @@ gateway.findPage(page, size). Do the minimum needed to make the tests pass and d
   keeps the TDD cycle honest. The red commit followed by the green commit is visible in the Git
   history, so the work can be verified instead of just claimed.
 
-(Add one entry per relevant interaction.)
+### Entry 03 - Story 01, Part 2A: PokeAPI adapter tests (TDD red) and a design gap
+
+- **Goal:** create the `PokemonProviderUnavailableException`, a `PokeApiPokemonGateway` skeleton and
+  the WireMock tests first (TDD red phase) for the adapter that implements the `PokemonGateway` port.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
+- **First prompt used:**
+
+```text
+Step 2A of "User Story 01: list Pokémon with pagination" (TDD red phase). We are creating the PokeAPI
+adapter that implements the existing PokemonGateway port. Follow .github/copilot-instructions.md. Do NOT add
+or change any dependency in pom.xml (WireMock standalone is already there as a test dependency).
+
+Create these files:
+
+1. domain/exception/PokemonProviderUnavailableException.java - RuntimeException with constructors
+   (String message) and (String message, Throwable cause). Plain Java, no framework imports.
+2. infrastructure/pokeapi/PokeApiPokemonGateway.java - implements PokemonGateway, constructor receives a
+   Spring RestClient (org.springframework.web.client.RestClient). IMPORTANT: leave findPage with
+   `throw new UnsupportedOperationException();` (the tests must fail first). No Spring stereotype annotations.
+3. Test resources in src/test/resources/pokeapi/: trimmed but realistic PokeAPI JSON payloads:
+   - pokemon-list-page0-size2.json: {"count":1350,"next":...,"previous":null,"results":[bulbasaur, ivysaur
+     with name and url]}
+   - pokemon-bulbasaur.json and pokemon-ivysaur.json: id, name, weight, "types" (give the entries in
+     reversed slot order on purpose: slot 2 first, then slot 1), "abilities" (with is_hidden and slot),
+     "sprites": {"front_default": "..."}, plus a few extra fields not used by us ("moves", "forms") to prove
+     unknown properties are ignored.
+4. src/test/.../infrastructure/pokeapi/PokeApiPokemonGatewayTest.java - JUnit 5 + AssertJ, WireMock via
+   WireMockExtension with a dynamic port (@RegisterExtension). No Spring context, no real network. Each test
+   builds `RestClient.builder().baseUrl(wireMock.baseUrl()).build()` and the gateway. Test cases:
+   - maps the list + detail responses to a PokemonPage (page 0, size 2): items in list order, all fields
+     mapped, types and abilities ordered by slot, page/size/totalElements filled;
+   - translates page and size to limit and offset (page 2, size 20 -> limit=20&offset=40), verified with
+     WireMock request verification;
+   - keeps the list order even when the first detail response is slower than the second (use a fixed delay);
+   - returns an empty items list but keeps totalElements when the list "results" is empty;
+   - maps a null "front_default" sprite to a null spriteUrl;
+   - throws PokemonProviderUnavailableException when the list call returns HTTP 500;
+   - throws PokemonProviderUnavailableException when one detail call returns HTTP 500;
+   - throws PokemonProviderUnavailableException when the PokeAPI answers slower than the read timeout
+     (build the RestClient in that test with a JdkClientHttpRequestFactory with a 200 ms read timeout and
+     stub a 1000 ms delay).
+Use clear test names that describe the behavior.
+```
+
+- **What the AI generated:** the exception, the gateway skeleton throwing `UnsupportedOperationException`,
+  three PokeAPI JSON fixtures and eight WireMock tests (mapping, pagination parameters, ordering,
+  empty results, null sprite, HTTP 500 on list, HTTP 500 on detail, read timeout). No dependency changes.
+- **What I checked:** no Spring, Jakarta or Jackson imports in `domain` and `application`; `pom.xml`
+  untouched; no test calling the real internet; the first test run was red (8 tests failing).
+- **Problems found:** a design gap. My prompt did not say how the adapter builds the detail URL or what the
+  RestClient base URL is, so the agent filled the gap on its own. Its tests rewrote the `url` fields of
+  the fixtures to point to WireMock and stubbed the detail calls by id (`/api/v2/pokemon/1/`). That would
+  have forced the adapter to follow URLs returned by an external service. I spotted it in
+  the review (a `replace(...)` of `https://pokeapi.co/api/v2` in the test) and not from the agent's summary,
+  which said everything was fine.
+- **What I changed / fixed:** I decided the design myself: the adapter builds `/pokemon/{name}` from the
+  name in the list and never follows URLs from the response, so the configured base URL applies to
+  every call. I sent a second prompt limited to the test code:
+
+```text
+The tests in PokeApiPokemonGatewayTest assume a different design than the one we want. Fix ONLY the test code
+and the JSON fixtures; do not touch any class under src/main and do not touch pom.xml.
+
+Contract the tests must follow:
+- The gateway's RestClient base URL is the API root INCLUDING /api/v2. In every test build it as
+  RestClient.builder().baseUrl(wireMock.baseUrl() + "/api/v2").build() (also in the timeout test).
+- The gateway calls GET /pokemon?limit={size}&offset={page*size} for the list and then
+  GET /pokemon/{name} for each item, using the NAME from the list item. It never follows the "url" field of
+  the list items.
+- WireMock stubs: /api/v2/pokemon (list) and /api/v2/pokemon/bulbasaur, /api/v2/pokemon/ivysaur (details).
+  No trailing slash, no lookup by id.
+- Remove the code that rewrites the "url" fields of the fixtures to point to WireMock (the replace(...) of
+  "https://pokeapi.co/api/v2" and the formatted(wireMock.baseUrl()) helper). The fixtures keep the original
+  pokeapi.co URLs, which must simply be ignored.
+Keep the same 8 test cases and names. The tests must still fail only because findPage is not implemented.
+```
+
+After the fix I re-ran the tests: 8 tests red, all failing with `UnsupportedOperationException`, and
+I confirmed with `grep` that the stubs and the base URL follow the contract.
+- **Lesson learned:** when a prompt leaves a design decision open, the agent decides for me, and its
+  summary will not mention it. For anything that touches an integration boundary (base URL, how
+  external URLs are used, error mapping) I now state the contract explicitly in the prompt, and I review
+  the generated tests for hidden assumptions before implementing anything.
 
 ## 5. Exercise: Task Management API
 
