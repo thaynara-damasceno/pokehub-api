@@ -274,6 +274,59 @@ Do the minimum needed. Do not modify the tests.
 - **Lesson learned:** tests prove behavior, not design. After going green I review the diff for complexity
   the agent added on its own, and I refactor with the tests protecting me.
 
+### Entry 05 - Story 01, Part 2B: refactor and the stubs that hid a bug
+
+- **Goal:** refactor the adapter after going green, keeping the behavior identical and the tests as a
+  safety net.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
+- **Prompt used:**
+
+```text
+Refactor step (TDD refactor phase): keep the behavior identical and all tests green. Do not modify any
+test, pom.xml, application.yaml or any file outside infrastructure/pokeapi.
+
+1. In PokeApiPokemonGateway remove the manual Jackson usage (ObjectMapper, JsonMapper, JacksonException and
+   the String body parsing). Let RestClient deserialize directly with .body(responseType). Keep wrapping
+   RestClientException (it also covers conversion errors) in PokemonProviderUnavailableException.
+2. Replace PokeApiResponses.java (several top-level records in one file) with a single final class
+   PokeApiResponses (private constructor) that holds the records as package-private nested records, and
+   update all references.
+3. Remove the unused `url` component from the list item record. The gateway must never use the URLs
+   returned by the PokeAPI (ignoreUnknown already discards that field).
+Run ./mvnw test and report the result. If removing the manual parsing makes any test fail, stop and tell
+me why instead of working around it.
+```
+
+- **What the AI generated:** the gateway without the manual Jackson parsing (the `RestClient` now
+  deserializes the body into the response records) and the records grouped as nested types of a single
+  `PokeApiResponses` class.
+- **What I checked:** `git diff --stat` (only files under `infrastructure/pokeapi`), a `grep` confirming
+  no `databind`, `JacksonException` or `JsonMapper` was left in `src/main/java`, and a full
+  `./mvnw clean verify`.
+- **Problems found:** the full build was red: 3 of the 8 gateway tests failed with
+  `UnknownContentTypeException: no suitable HttpMessageConverter ... content type [application/octet-stream]`.
+  The root cause was in the tests, not in the refactor. The WireMock stubs for the detail calls returned
+  the JSON body without a `Content-Type` header, so WireMock served it as `application/octet-stream`.
+  The previous implementation read every body as a `String` and parsed it by hand, ignoring the header,
+  so it had been hiding the inaccurate stubs. The real PokeAPI answers with
+  `application/json; charset=utf-8`, which I confirmed with `curl -I`.
+- **What I changed / fixed:** I fixed it myself, by hand, instead of delegating it back to the agent, and I
+  treated this as a deliberate exception to the rule "never change tests to make them pass": the tests were
+  modelling the external API incorrectly. I changed only the stubs, adding `Content-Type: application/json`
+  to the detail responses (the delayed stub of the ordering test and the shared `stubDetail` helper). No
+  assertion, test name, fixture or production class was changed. After that, `./mvnw clean verify` passed
+  with all 16 tests.
+- **Review of my own change:** before committing I read the diff of my manual fix and found a mistake
+  I had introduced by copying an AI-suggested snippet literally: the helper's `.withStatus(status)` had been
+  replaced by a hard-coded `.withStatus(200)` (plus a leftover comment), which would have made the helper
+  ignore its status parameter. I restored the original line and re-ran the full build before committing.
+  Takeaway: AI-suggested snippets, including those from a chat assistant, are starting points; I always
+  review the diff line by line, and I only commit after the full build is green.
+- **Lesson learned:** a green suite can hide wrong test doubles. Test doubles must imitate the real service
+  (status codes, headers, content type), and I verify them against the real API with `curl`. The refactor
+  step also worked as designed: the tests acted as a safety net and exposed an incorrect assumption that
+  the first implementation had masked.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
