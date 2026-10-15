@@ -77,7 +77,10 @@ class PokeApiPokemonGatewayTest {
     void preservesListOrderWhenTheFirstDetailResponseIsSlower() throws IOException {
         stubList(listPagePayload());
         wireMock.stubFor(get(urlPathEqualTo("/api/v2/pokemon/bulbasaur"))
-                .willReturn(aResponse().withFixedDelay(300).withBody(fixture("pokemon-bulbasaur.json"))));
+                .willReturn(aResponse()
+                        .withHeader("Content-Type", "application/json")
+                        .withFixedDelay(300)
+                        .withBody(fixture("pokemon-bulbasaur.json"))));
         stubIvysaur();
 
         PokemonPage page = gateway().findPage(0, 2);
@@ -172,6 +175,7 @@ class PokeApiPokemonGatewayTest {
     private void stubDetail(String name, String body, int status, int delayMilliseconds) {
         wireMock.stubFor(get(urlPathEqualTo("/api/v2/pokemon/" + name))
                 .willReturn(aResponse()
+                        .withHeader("Content-Type", "application/json")
                         .withStatus(status)
                         .withFixedDelay(delayMilliseconds)
                         .withBody(body)));
