@@ -4,20 +4,15 @@ import com.thaynara.pokehub.application.port.out.PokemonGateway;
 import com.thaynara.pokehub.domain.exception.PokemonProviderUnavailableException;
 import com.thaynara.pokehub.domain.model.Pokemon;
 import com.thaynara.pokehub.domain.model.PokemonPage;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 public class PokeApiPokemonGateway implements PokemonGateway {
-
-    private static final ObjectMapper JSON_MAPPER = JsonMapper.shared();
 
     private final RestClient restClient;
 
@@ -27,8 +22,9 @@ public class PokeApiPokemonGateway implements PokemonGateway {
 
     @Override
     public PokemonPage findPage(int page, int size) {
-        PokemonListResponse response = get("/pokemon?limit={size}&offset={offset}",
-                PokemonListResponse.class, size, page * size);
+        PokeApiResponses.PokemonListResponse response = get(
+                "/pokemon?limit={size}&offset={offset}",
+                PokeApiResponses.PokemonListResponse.class, size, page * size);
         if (response == null) {
             throw new PokemonProviderUnavailableException("PokeAPI returned an empty Pokémon page.");
         }
@@ -47,7 +43,8 @@ public class PokeApiPokemonGateway implements PokemonGateway {
     }
 
     private Pokemon fetchPokemon(String name) {
-        PokemonDetail detail = get("/pokemon/{name}", PokemonDetail.class, name);
+        PokeApiResponses.PokemonDetail detail = get(
+                "/pokemon/{name}", PokeApiResponses.PokemonDetail.class, name);
         if (detail == null) {
             throw new PokemonProviderUnavailableException(
                     "PokeAPI returned no details for Pokémon " + name + ".");
@@ -73,17 +70,13 @@ public class PokeApiPokemonGateway implements PokemonGateway {
 
     private <T> T get(String uri, Class<T> responseType, Object... uriVariables) {
         try {
-            String responseBody = restClient.get()
+            return restClient.get()
                     .uri(uri, uriVariables)
                     .retrieve()
-                    .body(String.class);
-            return responseBody == null ? null : JSON_MAPPER.readValue(responseBody, responseType);
+                    .body(responseType);
         } catch (RestClientException exception) {
             throw new PokemonProviderUnavailableException(
                     "PokeAPI request failed for " + uri + ".", exception);
-        } catch (JacksonException exception) {
-            throw new PokemonProviderUnavailableException(
-                    "PokeAPI returned an invalid response for " + uri + ".", exception);
         }
     }
 
