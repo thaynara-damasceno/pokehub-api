@@ -19,6 +19,6 @@ public class PokemonController {
     @GetMapping
     public PokemonPageResponse list(@RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "20") int size) {
-        throw new UnsupportedOperationException();
+        return PokemonPageResponse.from(listPokemonUseCase.list(page, size));
     }
 }
