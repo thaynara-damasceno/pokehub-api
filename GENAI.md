@@ -404,6 +404,65 @@ Use clear test names that describe the behavior.
   has to be complete enough for the framework to route and bind the request, so the tests reach the
   behavior under test. I always read the failure reasons, not just the red/green count.
 
+### Entry 07 - Story 01, Part 3B: web layer implementation (TDD green)
+
+- **Goal:** implement the controller, the DTO mapping and the error handling so the eight
+  `PokemonControllerTest` tests pass, and wire the use case as a bean.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
+- **Prompt used:**
+
+```text
+Step 3B of "User Story 01" (TDD green phase). Make all tests in PokemonControllerTest pass without
+changing them, and keep the existing tests green (including PokehubApiApplicationTests, which loads the whole
+context). Follow .github/copilot-instructions.md. Do not add dependencies, do not touch pom.xml,
+application.yaml, any test, or any class under domain or application. Do NOT create any Spring Security
+configuration yet.
+
+Design decisions (already fixed, do not change them):
+- Pagination rules live ONLY in the use case. The controller must not validate page or size.
+- The controller keeps `@RequestParam(defaultValue = "0") int page` and `@RequestParam(defaultValue = "20")
+  int size` and only delegates to the ListPokemonUseCase port.
+- Mapping domain -> DTO lives in the web layer: static factory methods PokemonResponse.from(Pokemon) and
+  PokemonPageResponse.from(PokemonPage) (totalPages comes from PokemonPage.totalPages()).
+- Errors are returned as Spring ProblemDetail (application/problem+json) by GlobalExceptionHandler, with
+  one @ExceptionHandler per case:
+  * InvalidPaginationException -> 400, detail = the exception message.
+  * PokemonProviderUnavailableException -> 502, detail exactly "The Pokémon data provider is currently
+    unavailable. Please try again later." The internal message must NOT be returned; log the exception on
+    the server with SLF4J (org.slf4j.Logger) instead.
+  * MethodArgumentTypeMismatchException -> 400, detail "Invalid value for parameter '<name>'." using the
+    parameter name.
+- Do not use Lombok.
+
+1. Implement the DTO factory methods and the controller body.
+2. Implement GlobalExceptionHandler with the three handlers above.
+3. Create infrastructure/config/UseCaseConfig.java (@Configuration) with a bean of type ListPokemonUseCase
+   built as `new ListPokemonService(PokemonGateway)`. ListPokemonService must stay free of framework
+   annotations.
+Do the minimum needed. Run ./mvnw clean verify and report the result. If a test fails, tell me why instead
+of changing the test.
+```
+
+- **What the AI generated:** the `from(...)` mapping methods on the two response records, the controller
+  delegating to the `ListPokemonUseCase` port with the default `page` and `size`, a
+  `GlobalExceptionHandler` with three `ProblemDetail` handlers (400 for invalid pagination, 502 for an
+  unavailable provider, 400 for a parameter type mismatch) and `UseCaseConfig`, which registers
+  `ListPokemonService` as a bean.
+- **What I checked:** `git diff --stat` showed only the controller, the two DTOs and the handler modified,
+  plus the new `UseCaseConfig`: no test, no `pom.xml` and no `application.yaml` changed; `grep` found no
+  Spring, Jakarta or Jackson imports in `domain` and `application`; a `grep` for `getMessage` in the web
+  package showed it only in the 400 handler. I read the 502 handler myself: it returns the fixed text and
+  sends the real exception to the server log, so no internal detail reaches the client. I ran
+  `./mvnw clean verify` myself: BUILD SUCCESS with 24 tests.
+- **Problems found:** none. The agent's summary (24 tests passing) matched my own run, and nothing
+  was added outside the contract.
+- **What I changed / fixed:** nothing.
+- **Lesson learned:** applying the lesson from Entry 03, I wrote the design decisions into the prompt
+  (validation only in the use case, a sanitized 502 body with the real error logged, DTO mapping in the web
+  layer, the use case registered as a bean without annotating the application class). With the contract
+  explicit, the agent had nothing left to decide on its own, and the review reduced to verifying the diff
+  and the security-sensitive handler.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
