@@ -1,6 +1,7 @@
 package com.thaynara.pokehub.infrastructure.config;
 
 import com.thaynara.pokehub.application.port.out.PokemonGateway;
+import com.thaynara.pokehub.infrastructure.pokeapi.CachingPokemonGateway;
 import com.thaynara.pokehub.infrastructure.pokeapi.PokeApiPokemonGateway;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -31,7 +32,14 @@ public class PokeApiConfig {
     }
 
     @Bean
-    PokemonGateway pokemonGateway(RestClient pokeApiRestClient) {
-        return new PokeApiPokemonGateway(pokeApiRestClient);
+    PokemonGateway pokemonGateway(
+            RestClient pokeApiRestClient,
+            @Value("${pokeapi.cache.ttl-seconds:300}") long ttlSeconds,
+            @Value("${pokeapi.cache.max-size:500}") long maxSize) {
+        return new CachingPokemonGateway(
+                new PokeApiPokemonGateway(pokeApiRestClient),
+                Duration.ofSeconds(ttlSeconds),
+                maxSize,
+                System::nanoTime);
     }
 }
