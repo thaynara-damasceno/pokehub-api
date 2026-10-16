@@ -18,6 +18,6 @@ public class PokemonDetailController {
 
     @GetMapping("/{id}")
     public PokemonDetailResponse detail(@PathVariable int id) {
-        throw new UnsupportedOperationException();
+        return PokemonDetailResponse.from(getPokemonDetailUseCase.get(id));
     }
 }
