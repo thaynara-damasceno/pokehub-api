@@ -65,7 +65,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" localhost:8080/api/pokemon/25/syn
 | `PUT /api/local-pokemon/{id}` | token | Replace `localizedName`, `region` and `tags` (404 / 400) |
 | `DELETE /api/local-pokemon/{id}` | token | Remove a local Pokémon (204; 404) |
 
-Errors use RFC 9457 `ProblemDetail`. A PokeAPI failure returns 502 with a fixed generic message; the
+Application errors use RFC 9457 `ProblemDetail`; a missing or invalid token gets a 401 from Spring Security with an empty body. A PokeAPI failure returns 502 with a fixed generic message; the
 real cause is only written to the server log.
 
 ## Architecture
@@ -107,7 +107,7 @@ domain          (records and rules, plain Java)
 
 Every story was built test-first, and the red to green sequence is visible in the commit history
 (`test:` commit, then `feat:` commit, with `refactor:` where needed). The project was built with
-GenAI tools (GitHub Copilot for code generation, Claude for planning and review). The full account,
+GenAI tools (GitHub Copilot for code generation; Claude for planning and review, and it also wrote the Dockerfile and this README). The full account,
 including the prompts, what I checked, and the problems found, is in [GENAI.md](GENAI.md).
 
 ## Known limitations
@@ -118,7 +118,8 @@ including the prompts, what I checked, and the problems found, is in [GENAI.md](
 - The evolution chain is flattened depth-first, so branching chains lose their tree shape.
 - Weight is returned as PokeAPI provides it (hectograms), without conversion.
 - Tag duplicates are case-sensitive (`Fire` and `fire` are different tags).
-- BCrypt only uses the first 72 bytes of a password, while the 72 limit is counted in characters.
+- BCrypt has a 72-byte limit, while the password length check counts characters, so a password with accented characters can pass the check and still exceed 72 bytes.
 - Registration reveals whether a username exists; there is no rate limiting, token refresh or revocation.
 - Concurrent first-time syncs of the same Pokémon are not handled specially.
 - Demo credentials and the default JWT secret are committed for convenience.
+- The only demo data is the `demo` user; the local Pokémon collection starts empty until a sync.
