@@ -746,22 +746,199 @@ changing the test.
 
 ## 5. Exercise: Task Management API
 
-> To be completed near the end of the project.
+This exercise is separate from the PokeHub project. I ran it in a local scratch repository that is not published, so the generated code would not mix with the reviewed project. This section holds the prompt, representative samples, and what I found when I reviewed the output.
 
 ### 5.1 Prompt
-TODO
+
+- **Tool:** GitHub Copilot (Agent mode, IntelliJ) with a project instruction file (`.github/copilot-instructions.md`) adapted from the one in this repository: same architecture and TDD rules, package `com.example.tasks`, no PokeAPI references.
+- **How the prompt was made:** I drafted it with Claude's help and used it as written. It states the architecture, the model, the endpoints, the edge cases and what NOT to do, and it asks the tool to stop after the domain and application layers so I can review before any infrastructure exists.
+
+```text
+Generate a RESTful Task Management API in Java 21 with Spring Boot, Maven, following Clean Architecture and TDD. Package com.example.tasks.
+
+Architecture (strict):
+- domain: plain Java records/enums and rules, no Spring/JPA/Jackson imports.
+- application: use cases and ports (interfaces), plain Java, no Spring imports.
+- infrastructure: REST controllers, DTOs, JPA entities and adapters, security config. JPA entities must never reach controllers; map them to domain objects inside the adapters.
+
+Model:
+- Task: id (UUID), title, description, status, dueDate, ownerUsername.
+- status is an enum TODO, IN_PROGRESS, DONE (default TODO).
+- User: username (unique), passwordHash. Assume a basic User model exists; implement only register and login.
+
+Endpoints (standard verbs, consistent JSON, RFC 9457 ProblemDetail errors):
+- POST /api/auth/register, POST /api/auth/login (returns a signed JWT).
+- POST /api/tasks (201), GET /api/tasks (paginated, optional ?status=), GET /api/tasks/{id}, PUT /api/tasks/{id} (full replacement), DELETE /api/tasks/{id} (204).
+- Every /api/tasks route requires a valid bearer token.
+
+Rules and edge cases:
+- A user can only see and change their own tasks. For another user's task return 404, not 403, so existence is not leaked.
+- title required, 1 to 120 characters; description optional, up to 2000; dueDate optional ISO-8601 date and not in the past on create; status must be a valid enum value.
+- Malformed JSON, invalid enum or invalid UUID return 400 with a clear message. Unknown id returns 404.
+- Passwords hashed with BCrypt; the JWT secret comes from configuration, never hardcoded. Never log passwords or tokens. Login returns the same 401 for an unknown user and a wrong password.
+- Use parameterized access only (Spring Data), no string-built queries.
+
+Process:
+- Work test-first: for each layer write failing tests (JUnit 5, Mockito for the application layer, @DataJpaTest on H2 for persistence, MockMvc for controllers and security), then the implementation.
+- Do NOT put business rules in controllers. Do NOT modify tests to make them pass. Do NOT add features I did not ask for.
+- Start with the domain and application layers and stop for my review before generating the infrastructure.
+```
+
+<details>
+<summary>Follow-up prompts (condensed)</summary>
+
+- **Stage 2:** generate the infrastructure test-first (JPA entities separate from the domain records, adapters that look tasks up by id AND owner, stateless HS256 JWT with the resource server already in the `pom.xml`, BCrypt, controllers and DTOs, one exception handler mapping to ProblemDetail, use cases wired as beans). The owner always comes from the token. Do not add dependencies and do not modify the domain, the application code or existing tests.
+- **Fix, red:** add a failing test that `TaskPageRequest` rejects a size above 100 and accepts 100; add only, then stop.
+- **Fix, green:** change only `TaskPageRequest`: a named constant for the maximum and an `IllegalArgumentException` above it. Do not touch tests or the `pom.xml`.
+
+</details>
 
 ### 5.2 Generated code (representative sample)
-TODO
+
+Three short samples from the output, all of which I read.
+
+**Domain rules live in the record constructor, and "today" is passed in (`Task.java`):**
+
+```java
+public record Task(
+        UUID id,
+        String title,
+        String description,
+        TaskStatus status,
+        LocalDate dueDate,
+        String ownerUsername) {
+
+    public Task {
+        if (id == null) {
+            throw new ValidationException("Task id is required");
+        }
+        if (title == null || title.isBlank() || title.length() > 120) {
+            throw new ValidationException("Title must contain 1 to 120 characters");
+        }
+        if (description != null && description.length() > 2000) {
+            throw new ValidationException("Description must not exceed 2000 characters");
+        }
+        if (ownerUsername == null || ownerUsername.isBlank()) {
+            throw new ValidationException("Task owner is required");
+        }
+        status = status == null ? TaskStatus.TODO : status;
+    }
+
+    public static Task create(
+            UUID id,
+            String title,
+            String description,
+            TaskStatus status,
+            LocalDate dueDate,
+            String ownerUsername,
+            LocalDate today) {
+        if (dueDate != null && dueDate.isBefore(today)) {
+            throw new ValidationException("Due date must not be in the past");
+        }
+        return new Task(id, title, description, status, dueDate, ownerUsername);
+    }
+
+    public static Task replace(
+            UUID id,
+            String title,
+            String description,
+            TaskStatus status,
+            LocalDate dueDate,
+            String ownerUsername) {
+        return new Task(id, title, description, status, dueDate, ownerUsername);
+    }
+}
+```
+
+**Another user's task is simply not found (`GetTaskUseCase.java`):**
+
+```java
+public Task execute(UUID id, String ownerUsername) {
+    return taskRepository.findByIdAndOwner(id, ownerUsername)
+            .orElseThrow(() -> new ResourceNotFoundException("Task"));
+}
+```
+
+**Route protection (`SecurityConfiguration.java`):**
+
+```java
+.authorizeHttpRequests(authorize -> authorize
+        .requestMatchers("/api/auth/**").permitAll()
+        .requestMatchers("/api/tasks", "/api/tasks/**").authenticated()
+        .anyRequest().permitAll())
+.exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(authenticationEntryPoint))
+.oauth2ResourceServer(resourceServer -> resourceServer
+        .authenticationEntryPoint(authenticationEntryPoint)
+        .jwt(Customizer.withDefaults()))
+```
 
 ### 5.3 How I validated the suggestions
-TODO
+
+- **In stages.** The tool stopped after the domain and application layers, as the prompt asked, and I reviewed them before asking for the infrastructure.
+- **Reading.** I read `Task`, `CreateTaskUseCase`, `GetTaskUseCase`, `LoginUseCase`, `ReplaceTaskUseCase`, `TaskController`, `TaskRequest`, `TaskPageRequest`, the security configuration and the exception handler.
+- **Mechanical checks (same method as section 3).** No Spring, Jakarta or Jackson imports in `domain` or `application` (`grep` returned nothing); no dependency added (`git diff` on `pom.xml` was empty); the JWT secret is read from configuration, with no default value and a 32-byte minimum check; no logging of passwords or tokens (`grep` returned nothing); no existing file was modified by the infrastructure step.
+- **Tests.** The suite passed after each stage: 21 tests after the domain and application layers, 30 after the infrastructure, 31 after my fix.
+- **Running it.** I started the application and attacked it with `curl` (table in 5.5).
+- **What I did not do.** I did not read the JPA entities and adapters, the response DTOs or the integration tests line by line, and I did not exercise cross-user access by hand: for that, I rely on the agent's report that its integration tests cover it.
 
 ### 5.4 What I corrected or improved
-TODO
 
-### 5.5 Edge cases, authentication and validation
-TODO
+**Fixed: unbounded page size.** `curl` with `?size=100000` returned 200. The prompt never asked for a limit, so the tool did not add one. I fixed it test-first in two commits: a failing test (size 101 is rejected, size 100 is accepted) and then the minimum change.
+
+```diff
+ public record TaskPageRequest(int page, int size) {
+ 
++    public static final int MAX_PAGE_SIZE = 100;
++
+     public TaskPageRequest {
+         ...
++        if (size > MAX_PAGE_SIZE) {
++            throw new IllegalArgumentException("Page size must not exceed " + MAX_PAGE_SIZE);
++        }
+     }
+ }
+```
+
+After the fix the same request returns 400, and `size=100` still returns 200.
+
+**Found but not fixed:**
+
+| Finding | How I know |
+|---|---|
+| A repeated username returns 400 instead of 409: the handler groups `UsernameAlreadyExistsException` with validation errors | Confirmed with `curl`; handler read |
+| The security chain ends with `anyRequest().permitAll()`, so a new route outside `/api/tasks` and `/api/auth` would be public by default; the safe default is to require authentication | Read the configuration |
+| The handler catches every `IllegalArgumentException`, which could turn an unrelated library error into a 400 and hide a real bug | Read the handler (a risk, not observed) |
+| The same title and description rules exist twice, in `TaskRequest` (Bean Validation) and in the `Task` constructor, and they can drift apart | Read both |
+| `Task.replace` only calls the constructor, so it adds nothing | Read the code |
+| Login skips the BCrypt check when the user does not exist, so response time could reveal valid usernames | Reasoning from the code, not measured |
+| One test compares against `LocalDate.now()` and could fail across midnight | Seen in the test source |
+
+The agent also reported that the Spring Boot 4 test annotation packages differ from the ones it used first, and it corrected its own imports.
+
+**Lesson:** what the prompt does not say, the tool decides alone. The page size limit and the 409 were gaps in my prompt as much as in the output.
+
+### 5.5 Edge cases, authentication and validations
+
+**Authentication.** Stateless JWT (HS256) with BCrypt for passwords. Every `/api/tasks` route requires a token and `/api/auth/**` is public. The task owner is the token subject (`jwt.getSubject()`) and never comes from the request body. Login throws the same exception for an unknown user and a wrong password.
+
+**Validation.** Field rules live in the domain constructor. The "due date not in the past" rule applies on creation only, as the prompt asked, so editing an old task does not fail because its date has passed.
+
+**Ownership.** Lookups are by id and owner, so another user's task is "not found" and its existence is not leaked.
+
+**Edge cases I ran against the running application:**
+
+| Request | Status |
+|---|---|
+| Register a new user | 201 |
+| Register the same username again | 400 (409 would be better) |
+| `?page=-1` | 400 |
+| `?size=100000` before the fix | 200 |
+| `?size=100000` after the fix | 400 |
+| `?size=100` after the fix | 200 |
+| `?status=LIXO` (invalid enum) | 400 |
+| `/api/tasks/not-a-uuid` | 400 |
+| Malformed JSON body | 400 |
+| No token | 401 |
 
 ## 6. Interview cheat sheet
 
