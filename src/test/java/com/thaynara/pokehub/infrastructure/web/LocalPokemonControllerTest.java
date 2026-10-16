@@ -3,6 +3,8 @@ package com.thaynara.pokehub.infrastructure.web;
 import com.thaynara.pokehub.application.port.in.GetLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.ListLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.SyncPokemonUseCase;
+import com.thaynara.pokehub.application.port.in.UpdateLocalPokemonUseCase;
+import com.thaynara.pokehub.application.port.in.DeleteLocalPokemonUseCase;
 import com.thaynara.pokehub.domain.exception.InvalidLocalPokemonException;
 import com.thaynara.pokehub.domain.exception.InvalidPokemonIdException;
 import com.thaynara.pokehub.domain.exception.LocalPokemonNotFoundException;
@@ -48,6 +50,12 @@ class LocalPokemonControllerTest {
 
     @MockitoBean
     private ListLocalPokemonUseCase listLocalPokemonUseCase;
+
+    @MockitoBean
+    private UpdateLocalPokemonUseCase updateLocalPokemonUseCase;
+
+    @MockitoBean
+    private DeleteLocalPokemonUseCase deleteLocalPokemonUseCase;
 
     @Test
     void syncsPokemonAndReturnsItsLocalFields() throws Exception {

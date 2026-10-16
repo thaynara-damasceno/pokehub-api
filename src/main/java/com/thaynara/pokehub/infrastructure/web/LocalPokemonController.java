@@ -3,11 +3,17 @@ package com.thaynara.pokehub.infrastructure.web;
 import com.thaynara.pokehub.application.port.in.GetLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.ListLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.SyncPokemonUseCase;
+import com.thaynara.pokehub.application.port.in.UpdateLocalPokemonUseCase;
+import com.thaynara.pokehub.application.port.in.DeleteLocalPokemonUseCase;
 import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -16,14 +22,20 @@ public class LocalPokemonController {
     private final SyncPokemonUseCase syncPokemonUseCase;
     private final GetLocalPokemonUseCase getLocalPokemonUseCase;
     private final ListLocalPokemonUseCase listLocalPokemonUseCase;
+    private final UpdateLocalPokemonUseCase updateLocalPokemonUseCase;
+    private final DeleteLocalPokemonUseCase deleteLocalPokemonUseCase;
 
     public LocalPokemonController(
             SyncPokemonUseCase syncPokemonUseCase,
             GetLocalPokemonUseCase getLocalPokemonUseCase,
-            ListLocalPokemonUseCase listLocalPokemonUseCase) {
+            ListLocalPokemonUseCase listLocalPokemonUseCase,
+            UpdateLocalPokemonUseCase updateLocalPokemonUseCase,
+            DeleteLocalPokemonUseCase deleteLocalPokemonUseCase) {
         this.syncPokemonUseCase = syncPokemonUseCase;
         this.getLocalPokemonUseCase = getLocalPokemonUseCase;
         this.listLocalPokemonUseCase = listLocalPokemonUseCase;
+        this.updateLocalPokemonUseCase = updateLocalPokemonUseCase;
+        this.deleteLocalPokemonUseCase = deleteLocalPokemonUseCase;
     }
 
     @PostMapping("/api/pokemon/{id}/sync")
@@ -41,5 +53,18 @@ public class LocalPokemonController {
     @GetMapping("/api/local-pokemon/{id}")
     public LocalPokemonResponse getById(@PathVariable int id) {
         return LocalPokemonResponse.from(getLocalPokemonUseCase.getById(id));
+    }
+
+    @PutMapping("/api/local-pokemon/{id}")
+    public LocalPokemonResponse update(
+            @PathVariable int id,
+            @RequestBody UpdateLocalPokemonRequest request) {
+        throw new UnsupportedOperationException();
+    }
+
+    @DeleteMapping("/api/local-pokemon/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable int id) {
+        throw new UnsupportedOperationException();
     }
 }
