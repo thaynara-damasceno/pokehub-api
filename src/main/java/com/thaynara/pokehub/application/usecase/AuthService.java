@@ -47,6 +47,9 @@ public class AuthService implements RegisterUserUseCase, AuthenticateUserUseCase
 
     @Override
     public AccessToken authenticate(String username, String rawPassword) {
+        if (username == null || rawPassword == null) {
+            throw new InvalidCredentialsException();
+        }
         Optional<User> user = userRepository.findByUsername(username);
         if (user.isEmpty() || !passwordHasher.matches(rawPassword, user.get().passwordHash())) {
             throw new InvalidCredentialsException();
