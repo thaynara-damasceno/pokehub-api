@@ -51,6 +51,8 @@ curl -X PUT -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json
 curl -X POST -H "Authorization: Bearer $TOKEN" localhost:8080/api/pokemon/25/sync
 ```
 
+A Postman collection with every case (success, validation errors, 401s, sync idempotency) is in [docs/postman](docs/postman/pokehub-api.postman_collection.json). Import it and run the collection in order, or from a terminal: `npx newman run docs/postman/pokehub-api.postman_collection.json`.
+
 ## Endpoints
 
 | Method and path | Access | Description |
