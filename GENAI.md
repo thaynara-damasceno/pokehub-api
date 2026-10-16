@@ -6,7 +6,7 @@ task-management exercise requested in the technical interview.
 
 ## At a glance
 
-- **What is in here:** section 1 is how I work with AI, section 2 the tools, section 3 my validation checklist, section 4 the prompt log (one entry per step up to Entry 08, one per story from Entry 09 on), section 5 the Task Management API exercise, and section 6 my interview cheat sheet.
+- **What is in here:** section 1 is how I work with AI, section 2 the tools, section 3 my validation checklist, section 4 the prompt log (one entry per step up to Entry 08, one per story or feature from Entry 09 on), section 5 the Task Management API exercise, and section 6 my interview cheat sheet.
 - **Tools and roles:** GitHub Copilot (Agent mode in IntelliJ) generated almost all application and test code from narrowly scoped prompts (the few manual fixes are in Entries 05 and 06). Claude (chat assistant) planned the steps, drafted and reviewed the prompts, and reviewed diffs and test output. Claude also wrote the Dockerfile, `.dockerignore`, the compose app service, the Postman collection and the README, which I pasted, reviewed and verified.
 - **How I verified:** after every step I read the diff and checked mechanically instead of trusting the tool's summary: a `grep` for framework imports in `domain` and `application`, `git diff --stat` on tests, `pom.xml` and security, the full test suite, and `curl` against the running application. Stories 01 to 04 and authentication were built test-first, and the failing-test commit comes before the implementation commit in the history.
 - **Where the AI or my prompts went wrong, and what I did (details in the entries):**
@@ -15,7 +15,7 @@ task-management exercise requested in the technical interview.
   - Entry 06: the agent said all seven tests were red as expected, but four failed for the wrong reason, because my prompt asked for a skeleton without `@RequestParam`; I found it by reading the failure messages.
   - Entry 12: two of my own red-phase prompts produced false reds: a JWT test with a fixed clock that looked expired, and a demo-user skeleton that broke every context test; I fixed both.
   - Section 5: in the Task API exercise the security chain ended with `anyRequest().permitAll()`, and page size had no limit until I added a test and fixed it.
-- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 16).
+- **A note on format:** all 16 entries follow the same compact format (template at the start of section 4), and the prompts are collapsed under each entry. Entries 10 to 12 hold a condensed description of the prompts instead of the full text, and Entry 13 has none because Copilot was not used.
 
 ## 1. Principles
 
@@ -46,24 +46,27 @@ task-management exercise requested in the technical interview.
 
 ## 4. Prompt log
 
-Template for each entry:
+Every entry uses the same compact format:
 
-- **Step / goal:**
-- **Prompt used:** (exact text)
-- **What the AI generated:**
-- **What I checked:**
-- **Problems found:**
-- **What I changed / fixed:**
-- **Lesson learned:**
+- **Goal:** what the step is for.
+- **Tools:** which tool did what, and what I did myself.
+- **Approach:** what was generated, and the design decisions I fixed in the prompt.
+- **What I checked (not the assistant's summary):** the mechanical checks and test runs I did myself.
+- **Problem found / fix:** what went wrong and what I did about it, or none.
+- **Lesson:** what I do differently now.
+- **Prompts:** collapsed under the entry (exact text for Entries 01 to 09 and 14 to 16; a condensed description for Entries 10 to 12; none for Entry 13, which did not use Copilot).
 
-### Entry 01 - Story 01, Part 1A: domain, ports and failing tests
+### Entry 01: Story 01, Part 1A: domain, ports and failing tests
 
-- **Goal:** create the `Pokemon` and `PokemonPage` records, the pagination exception, the
-  `PokemonGateway` and `ListPokemonUseCase` ports, a `ListPokemonService` skeleton, and the
-  unit tests first (TDD red phase).
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode, with the project rules in
-  `.github/copilot-instructions.md`.
-- **Prompt used:**
+- **Goal:** create the `Pokemon` and `PokemonPage` records, the pagination exception, the `PokemonGateway` and `ListPokemonUseCase` ports, a `ListPokemonService` skeleton, and the unit tests first (TDD red phase).
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode, with the project rules in `.github/copilot-instructions.md`. The agent asked permission before each command (for example a read-only `git status` and `ls`); I read each one and approved them one at a time, and I did not grant permanent access, so it could not commit, push or delete anything on its own.
+- **Approach:** Copilot generated all seven requested files: the two records, `InvalidPaginationException`, the two ports, the `ListPokemonService` skeleton (`MAX_PAGE_SIZE = 50`, no framework annotations, `list` throwing `UnsupportedOperationException`) and `ListPokemonServiceTest` with 7 test executions (happy path, negative page, three invalid sizes, two boundary sizes). The agent also ran the tests and reported the expected failure.
+- **What I checked (not the assistant's summary):** no Spring, JPA or Jackson imports in `domain` or `application` (a `grep` with no results); no annotations on `ListPokemonService`; the tests failed for the right reason and not because of a compilation error (7 failures, all caused by `UnsupportedOperationException`); the gateway is never called when the input is invalid.
+- **Problem found / fix:** none in this first pass; the output matched the contract in the prompt, so I changed nothing.
+- **Lesson:** stating the exact contract in the prompt (class names, fields, rules) and the TDD constraint ("leave the method throwing, tests must fail first") kept the agent from implementing ahead of the tests. Even when the first result is correct, I verify it independently instead of trusting the tool's summary.
+
+<details>
+<summary>Prompt used (exact text)</summary>
 
 ```text
 We are building a Spring Boot REST API (package com.thaynara.pokehub) following Clean Architecture and TDD.
@@ -94,36 +97,19 @@ Create these files:
 Use clear test names that describe the behavior.
 ```
 
-- **Control over the agent:** the agent asked for permission before running commands. I read
-  each command (for example a read-only `git status` and `ls` to explore the project) and
-  approved them one at a time ("Allow Once"). I did not grant permanent access to `git` or to
-  all commands, so it could not commit, push or delete anything on its own.
-- **What I checked:** no Spring/JPA/Jackson imports in `domain` or `application`; no
-  annotations on `ListPokemonService`; the `list` method still throws
-  `UnsupportedOperationException`; tests fail for the right reason and not because of a
-  compilation error; the gateway is never called when the input is invalid.
-- **What the AI generated:** all seven requested files: the `Pokemon` and `PokemonPage` records,
-  `InvalidPaginationException`, the `PokemonGateway` and `ListPokemonUseCase` ports, the
-  `ListPokemonService` skeleton (with `MAX_PAGE_SIZE = 50`, framework-free, `list` throwing
-  `UnsupportedOperationException`) and `ListPokemonServiceTest` with 7 test executions
-  (happy path, negative page, three invalid sizes, two boundary sizes). The agent also ran the
-  tests and reported the expected failure.
-- **Problems found:** none in this first pass. The output matched the contract in the prompt.
-  I did not rely on the agent's own summary: I confirmed it by running the tests myself (7 failures,
-  all caused by `UnsupportedOperationException`) and by grepping `domain` and `application` for
-  Spring, Jakarta and Jackson imports (no results).
-- **What I changed / fixed:** nothing; I accepted the generated code after reviewing it.
-- **Lesson learned:** stating the exact contract in the prompt (class names, fields, rules)
-  and the TDD constraint ("leave the method throwing, tests must fail first") kept the agent from
-  implementing ahead of the tests. Even when the first result is correct, I verify it
-  independently instead of trusting the tool's summary.
+</details>
 
-### Entry 02 - Story 01, Part 1B: pagination rules (TDD green)
+### Entry 02: Story 01, Part 1B: pagination rules (TDD green)
 
-- **Goal:** implement the minimum in `ListPokemonService.list` to make the failing tests pass,
-  without touching the tests.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode.
-- **Prompt used:**
+- **Goal:** implement the minimum in `ListPokemonService.list` to make the failing tests pass, without touching the tests.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode.
+- **Approach:** Copilot added the validation in `ListPokemonService.list`: a negative page or a size outside `1..MAX_PAGE_SIZE` throws `InvalidPaginationException` before the gateway is called, and valid requests are delegated to `gateway.findPage(page, size)`.
+- **What I checked (not the assistant's summary):** `git diff --stat` showed only `ListPokemonService.java` modified (the tests were untouched); the class still has no framework annotations; I ran `./mvnw clean verify` myself and all `ListPokemonServiceTest` cases passed (red to green).
+- **Problem found / fix:** none; the agent did the minimum requested and respected the instruction not to change the tests.
+- **Lesson:** the explicit constraint "do the minimum and do not change the tests" is what keeps the TDD cycle honest. The red commit followed by the green commit is visible in the Git history, so the work can be verified instead of just claimed.
+
+<details>
+<summary>Prompt used (exact text)</summary>
 
 ```text
 Implement ListPokemonService.list(int page, int size) so that all tests in ListPokemonServiceTest pass.
@@ -132,25 +118,19 @@ InvalidPaginationException with a clear message, without calling the gateway. Ot
 gateway.findPage(page, size). Do the minimum needed to make the tests pass and do not change the tests.
 ```
 
-- **What the AI generated:** the validation in `ListPokemonService.list`: a negative page or a size
-  outside `1..MAX_PAGE_SIZE` throws `InvalidPaginationException` before the gateway is called;
-  valid requests are delegated to `gateway.findPage(page, size)`.
-- **What I checked:** `git diff --stat` showed only `ListPokemonService.java` modified (the tests
-  were untouched); the class still has no framework annotations; I ran `./mvnw clean verify`
-  myself and all `ListPokemonServiceTest` cases passed (red -> green).
-- **Problems found:** none. The agent did the minimum requested and respected the instruction not to
-  change the tests.
-- **What I changed / fixed:** nothing.
-- **Lesson learned:** the explicit constraint "do the minimum and do not change the tests" is what
-  keeps the TDD cycle honest. The red commit followed by the green commit is visible in the Git
-  history, so the work can be verified instead of just claimed.
+</details>
 
-### Entry 03 - Story 01, Part 2A: PokeAPI adapter tests (TDD red) and a design gap
+### Entry 03: Story 01, Part 2A: PokeAPI adapter tests (TDD red) and a design gap
 
-- **Goal:** create the `PokemonProviderUnavailableException`, a `PokeApiPokemonGateway` skeleton and
-  the WireMock tests first (TDD red phase) for the adapter that implements the `PokemonGateway` port.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
-- **First prompt used:**
+- **Goal:** create `PokemonProviderUnavailableException`, a `PokeApiPokemonGateway` skeleton and the WireMock tests first (TDD red phase) for the adapter that implements the `PokemonGateway` port.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode (I approved each command one at a time), and a chat assistant as a second reviewer of the result.
+- **Approach:** Copilot generated the exception, the gateway skeleton throwing `UnsupportedOperationException`, three PokeAPI JSON fixtures and eight WireMock tests (mapping, pagination parameters, ordering, empty results, null sprite, HTTP 500 on the list, HTTP 500 on a detail, read timeout), with no dependency changes.
+- **What I checked (not the assistant's summary):** no Spring, Jakarta or Jackson imports in `domain` and `application`; `pom.xml` untouched; no test calling the real internet; the first run was red (8 tests failing). After the fix I re-ran the tests (8 red, all with `UnsupportedOperationException`) and confirmed with `grep` that the stubs and the base URL follow the contract.
+- **Problem found / fix:** a design gap. My prompt did not say how the adapter builds the detail URL or what the `RestClient` base URL is, so the agent filled the gap on its own: its tests rewrote the `url` fields of the fixtures to point to WireMock and stubbed the detail calls by id, which would have forced the adapter to follow URLs returned by an external service. The agent's summary said everything was fine; I found it with a `grep` on the generated test (it showed a `replace(...)` of `https://pokeapi.co/api/v2`) and by reviewing the result with a chat assistant. I decided the design myself: the adapter builds `/pokemon/{name}` from the name in the list and never follows URLs from the response, so the configured base URL applies to every call. Then I sent a second prompt limited to the test code.
+- **Lesson:** when a prompt leaves a design decision open, the agent decides for me and its summary will not mention it. For anything that touches an integration boundary (base URL, how external URLs are used, error mapping) I now state the contract explicitly in the prompt, and I review the generated tests for hidden assumptions before implementing anything.
+
+<details>
+<summary>First prompt (exact text)</summary>
 
 ```text
 Step 2A of "User Story 01: list Pokémon with pagination" (TDD red phase). We are creating the PokeAPI
@@ -189,21 +169,10 @@ Create these files:
 Use clear test names that describe the behavior.
 ```
 
-- **What the AI generated:** the exception, the gateway skeleton throwing `UnsupportedOperationException`,
-  three PokeAPI JSON fixtures and eight WireMock tests (mapping, pagination parameters, ordering,
-  empty results, null sprite, HTTP 500 on list, HTTP 500 on detail, read timeout). No dependency changes.
-- **What I checked:** no Spring, Jakarta or Jackson imports in `domain` and `application`; `pom.xml`
-  untouched; no test calling the real internet; the first test run was red (8 tests failing).
-- **Problems found:** a design gap. My prompt did not say how the adapter builds the detail URL or what the
-  RestClient base URL is, so the agent filled the gap on its own. Its tests rewrote the `url` fields of
-  the fixtures to point to WireMock and stubbed the detail calls by id (`/api/v2/pokemon/1/`). That would
-  have forced the adapter to follow URLs returned by an external service. I did not get this from the
-  agent's summary, which said everything was fine: I found it by running a `grep` on the generated test
-  (it showed a `replace(...)` of `https://pokeapi.co/api/v2`) and reviewing the result with a chat
-  assistant as a second reviewer.
-- **What I changed / fixed:** I decided the design myself: the adapter builds `/pokemon/{name}` from the
-  name in the list and never follows URLs from the response, so the configured base URL applies to
-  every call. I sent a second prompt limited to the test code:
+</details>
+
+<details>
+<summary>Second prompt, test code only (exact text)</summary>
 
 ```text
 The tests in PokeApiPokemonGatewayTest assume a different design than the one we want. Fix ONLY the test code
@@ -223,20 +192,19 @@ Contract the tests must follow:
 Keep the same 8 test cases and names. The tests must still fail only because findPage is not implemented.
 ```
 
-After the fix I re-ran the tests: 8 tests red, all failing with `UnsupportedOperationException`, and
-I confirmed with `grep` that the stubs and the base URL follow the contract.
+</details>
 
-- **Lesson learned:** when a prompt leaves a design decision open, the agent decides for me, and its
-  summary will not mention it. For anything that touches an integration boundary (base URL, how
-  external URLs are used, error mapping) I now state the contract explicitly in the prompt, and I review
-  the generated tests for hidden assumptions before implementing anything.
+### Entry 04: Story 01, Part 2B: PokeAPI adapter implementation (TDD green)
 
-### Entry 04 - Story 01, Part 2B: PokeAPI adapter implementation (TDD green)
+- **Goal:** implement `PokeApiPokemonGateway` so the eight failing tests pass, plus the Spring configuration that wires the `RestClient` and the `PokemonGateway` beans.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode (I approved each command one at a time), and a chat assistant as a second reviewer.
+- **Approach:** Copilot generated the gateway (detail requests in parallel on virtual threads with the executor closed by try-with-resources, results kept in list order, types and abilities sorted by slot, provider errors translated to `PokemonProviderUnavailableException` with the original cause kept), package-private response records, `PokeApiConfig` with the `RestClient` and `PokemonGateway` beans, and the three `pokeapi.*` properties in `application.yaml`. The eight gateway tests passed.
+- **What I checked (not the assistant's summary):** `git diff --stat` showed no test and no `pom.xml` changed; `grep` found no Spring, Jakarta or Jackson imports in `domain` and `application`, and no `RestTemplate`, `WebClient`, `Thread.sleep` or `System.out`; the PokeAPI URL exists only in `application.yaml`. I reviewed the code against a checklist, with a chat assistant as a second reviewer: offset is `page * size`; the detail call uses the name as a URI variable and never follows URLs returned by the API; all futures are created before being joined in list order; the `CompletionException` is unwrapped; the Jackson 3 packages are correct.
+- **Problem found / fix:** green tests did not mean good design. (1) Unrequested complexity: the gateway read the body as a `String` and parsed it with its own Jackson mapper, duplicating what `RestClient` already does and adding a second error path. (2) Code quality: seven top-level records in one file, and a `url` field in the list item that is never used. (3) Gaps not covered by tests, noted as follow-ups: `page * size` can overflow `int` for absurd page numbers, and null `results` or `types` would throw a `NullPointerException`. The refactor was done in a separate commit with the tests as a safety net (see Entry 05).
+- **Lesson:** tests prove behavior, not design. After going green I review the diff for complexity the agent added on its own, and I refactor with the tests protecting me.
 
-- **Goal:** implement `PokeApiPokemonGateway` so the eight failing tests pass, plus the Spring
-  configuration that wires the `RestClient` and the `PokemonGateway` beans.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
-- **Prompt used:**
+<details>
+<summary>Prompt used (exact text)</summary>
 
 ```text
 Step 2B of "User Story 01" (TDD green phase). Make all tests in PokeApiPokemonGatewayTest pass without
@@ -267,34 +235,19 @@ Design decisions (already fixed, do not change them):
 Do the minimum needed. Do not modify the tests.
 ```
 
-- **What the AI generated:** the gateway (detail requests in parallel on virtual threads with the executor
-  closed by try-with-resources, results kept in list order, types and abilities sorted by slot,
-  provider errors translated to `PokemonProviderUnavailableException` with the original cause kept),
-  package-private response records, `PokeApiConfig` with the `RestClient` and `PokemonGateway` beans, and
-  the three `pokeapi.*` properties in `application.yaml`. The eight gateway tests passed.
-- **What I checked:** `git diff --stat` showed no test and no `pom.xml` changed; `grep` found no Spring,
-  Jakarta or Jackson imports in `domain` and `application`, and no `RestTemplate`, `WebClient`,
-  `Thread.sleep` or `System.out`; the PokeAPI URL exists only in `application.yaml`. I reviewed the code
-  against a checklist, with a chat assistant as a second reviewer: offset is `page * size`; the detail call
-  uses the name as a URI variable and never follows URLs returned by the API; all futures are created before
-  being joined in list order; the `CompletionException` is unwrapped; Jackson 3 packages are correct.
-- **Problems found:** green tests did not mean good design. (1) Unrequested complexity: the gateway read
-  the body as a `String` and parsed it with its own Jackson mapper, duplicating what `RestClient` already
-  does and adding a second error path. (2) Code quality: seven top-level records in one file, and a `url`
-  field in the list item that is never used. (3) Gaps not covered by tests, noted as follow-ups: `page * size`
-  can overflow `int` for absurd page numbers, and null `results` or `types` would throw a
-  `NullPointerException`.
-- **What I changed / fixed:** the refactor was done in a separate commit with the tests as a safety net
-  (see Entry 05).
-- **Lesson learned:** tests prove behavior, not design. After going green I review the diff for complexity
-  the agent added on its own, and I refactor with the tests protecting me.
+</details>
 
-### Entry 05 - Story 01, Part 2B: refactor and the stubs that hid a bug
+### Entry 05: Story 01, Part 2B: refactor and the stubs that hid a bug
 
-- **Goal:** refactor the adapter after going green, keeping the behavior identical and the tests as a
-  safety net.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
-- **Prompt used:**
+- **Goal:** refactor the adapter after going green, keeping the behavior identical and the tests as a safety net.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode (I approved each command one at a time). The test fix described below was done by me, by hand.
+- **Approach:** Copilot removed the manual Jackson parsing (the `RestClient` now deserializes the body into the response records) and grouped the records as nested types of a single `PokeApiResponses` class.
+- **What I checked (not the assistant's summary):** `git status` showed that the refactor touched only `PokeApiPokemonGateway.java` and `PokeApiResponses.java` under `infrastructure/pokeapi`; a `grep` confirmed no `databind`, `JacksonException` or `JsonMapper` was left in `src/main/java`; and I ran a full `./mvnw clean verify`.
+- **Problem found / fix:** the full build was red: 3 of the 8 gateway tests failed with `UnknownContentTypeException: no suitable HttpMessageConverter ... content type [application/octet-stream]`. The root cause was in the tests, not in the refactor: the WireMock stubs for the detail calls returned the JSON body without a `Content-Type` header, so WireMock served it as `application/octet-stream`. The previous implementation read every body as a `String` and parsed it by hand, ignoring the header, so it had been hiding the inaccurate stubs. The real PokeAPI answers with `application/json; charset=utf-8`, which I confirmed with `curl -I`. I fixed it myself, by hand, instead of delegating it back to the agent, and I treated this as a deliberate exception to the rule "never change tests to make them pass", because the tests were modelling the external API incorrectly. I changed only the stubs, adding `Content-Type: application/json` to the detail responses (the delayed stub of the ordering test and the shared `stubDetail` helper). No assertion, test name, fixture or production class was changed, and afterwards `./mvnw clean verify` passed with all 16 tests. Before committing I also read the diff of my own fix and found a mistake I had introduced by copying an AI-suggested snippet literally: the helper's `.withStatus(status)` had been replaced by a hard-coded `.withStatus(200)` (plus a leftover comment), which would have made the helper ignore its status parameter. I restored the original line and re-ran the full build before committing.
+- **Lesson:** a green suite can hide wrong test doubles. Test doubles must imitate the real service (status codes, headers, content type), and I verify them against the real API with `curl`. The refactor step also worked as designed: the tests acted as a safety net and exposed an incorrect assumption that the first implementation had masked. AI-suggested snippets, including those from a chat assistant, are starting points; I review the diff line by line and only commit after the full build is green.
+
+<details>
+<summary>Prompt used (exact text)</summary>
 
 ```text
 Refactor step (TDD refactor phase): keep the behavior identical and all tests green. Do not modify any
@@ -312,42 +265,19 @@ Run ./mvnw test and report the result. If removing the manual parsing makes any 
 me why instead of working around it.
 ```
 
-- **What the AI generated:** the gateway without the manual Jackson parsing (the `RestClient` now
-  deserializes the body into the response records) and the records grouped as nested types of a single
-  `PokeApiResponses` class.
-- **What I checked:** `git status` showed that the refactor touched only `PokeApiPokemonGateway.java`
-  and `PokeApiResponses.java` under `infrastructure/pokeapi`, a `grep` confirming no `databind`,
-  `JacksonException` or `JsonMapper` was left in `src/main/java`, and a full `./mvnw clean verify`.
-- **Problems found:** the full build was red: 3 of the 8 gateway tests failed with
-  `UnknownContentTypeException: no suitable HttpMessageConverter ... content type [application/octet-stream]`.
-  The root cause was in the tests, not in the refactor. The WireMock stubs for the detail calls returned
-  the JSON body without a `Content-Type` header, so WireMock served it as `application/octet-stream`.
-  The previous implementation read every body as a `String` and parsed it by hand, ignoring the header,
-  so it had been hiding the inaccurate stubs. The real PokeAPI answers with
-  `application/json; charset=utf-8`, which I confirmed with `curl -I`.
-- **What I changed / fixed:** I fixed it myself, by hand, instead of delegating it back to the agent, and I
-  treated this as a deliberate exception to the rule "never change tests to make them pass": the tests were
-  modelling the external API incorrectly. I changed only the stubs, adding `Content-Type: application/json`
-  to the detail responses (the delayed stub of the ordering test and the shared `stubDetail` helper). No
-  assertion, test name, fixture or production class was changed. After that, `./mvnw clean verify` passed
-  with all 16 tests.
-- **Review of my own change:** before committing I read the diff of my manual fix and found a mistake
-  I had introduced by copying an AI-suggested snippet literally: the helper's `.withStatus(status)` had been
-  replaced by a hard-coded `.withStatus(200)` (plus a leftover comment), which would have made the helper
-  ignore its status parameter. I restored the original line and re-ran the full build before committing.
-  Takeaway: AI-suggested snippets, including those from a chat assistant, are starting points; I always
-  review the diff line by line, and I only commit after the full build is green.
-- **Lesson learned:** a green suite can hide wrong test doubles. Test doubles must imitate the real service
-  (status codes, headers, content type), and I verify them against the real API with `curl`. The refactor
-  step also worked as designed: the tests acted as a safety net and exposed an incorrect assumption that
-  the first implementation had masked.
+</details>
 
-### Entry 06 - Story 01, Part 3A: web layer tests (TDD red) and a red for the wrong reason
+### Entry 06: Story 01, Part 3A: web layer tests (TDD red) and a red for the wrong reason
 
-- **Goal:** create the web DTOs, a controller skeleton, an empty exception advice and the MockMvc tests
-  first (TDD red phase) for `GET /api/pokemon`.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
-- **Prompt used:**
+- **Goal:** create the web DTOs, a controller skeleton, an empty exception advice and the MockMvc tests first (TDD red phase) for `GET /api/pokemon`.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode (I approved each command one at a time), and a chat assistant to review the failure messages.
+- **Approach:** Copilot generated the two response records, a controller skeleton that receives the `ListPokemonUseCase` port and throws `UnsupportedOperationException`, an empty `@RestControllerAdvice` and `PokemonControllerTest` with seven MockMvc tests. It used `@MockitoBean` and the Spring Boot 4 test packages correctly, which I had named explicitly in the prompt.
+- **What I checked (not the assistant's summary):** `pom.xml` untouched and only new files in `git status`; no `@MockBean` anywhere; no Spring, Jakarta or Jackson imports in `domain` and `application`; I read the tests against the contract (JSON fields, `totalPages`, empty page, problem+json content type, and an assertion that the internal exception message does not leak in the 502 body).
+- **Problem found / fix:** the agent's summary said all seven tests were red "as expected", but four of them were failing for the wrong reason: `IllegalStateException: Optional int parameter 'page' is present but cannot be translated into a null value due to being declared as a primitive type`. The skeleton declared `int page, int size` without `@RequestParam`, so Spring failed while resolving the arguments, before the controller body was ever reached. The root cause was my prompt, which asked for "NO @RequestParam yet". I found it by reading the failure messages of the test run (reviewed together with a chat assistant) instead of trusting the summary. I corrected the skeleton myself with a one-line change per parameter, `@RequestParam(defaultValue = "0") int page` and `@RequestParam(defaultValue = "20") int size`, and kept the `UnsupportedOperationException` body. After that, the run showed seven red tests for the right reasons: six `UnsupportedOperationException` and one `Content type not set` (Spring already answered 400 for `page=abc`, but without the problem+json body that the handler will produce). I also improved the generated tests by hand before committing: I replaced the fully-qualified Hamcrest calls with static imports and added an eighth test for a non-numeric `size` parameter (the agent had only covered `page`), which uses the same handler. The final red run showed eight failing tests for the right reasons: six `UnsupportedOperationException` and two `Content type not set`.
+- **Lesson:** a red test only proves something when it fails for the right reason. A TDD skeleton has to be complete enough for the framework to route and bind the request, so the tests reach the behavior under test. I always read the failure reasons, not just the red/green count.
+
+<details>
+<summary>Prompt used (exact text)</summary>
 
 ```text
 Step 3A of "User Story 01: list Pokémon with pagination" (TDD red phase). We are creating the web layer.
@@ -388,41 +318,19 @@ Create these files in package com.thaynara.pokehub.infrastructure.web:
 Use clear test names that describe the behavior.
 ```
 
-- **What the AI generated:** the two response records, a controller skeleton that receives the
-  `ListPokemonUseCase` port and throws `UnsupportedOperationException`, an empty `@RestControllerAdvice`
-  and `PokemonControllerTest` with seven MockMvc tests. It used `@MockitoBean` and the Spring Boot 4 test
-  packages correctly, which I had named explicitly in the prompt.
-- **What I checked:** `pom.xml` untouched and only new files in `git status`; no `@MockBean` anywhere; no
-  Spring, Jakarta or Jackson imports in `domain` and `application`; I read the test against the contract
-  (JSON fields, `totalPages`, empty page, problem+json content type, and an assertion that the internal
-  exception message does not leak in the 502 body).
-- **Problems found:** the agent's summary said all seven tests were red "as expected", but four of them
-  were failing for the wrong reason: `IllegalStateException: Optional int parameter 'page' is present but
-  cannot be translated into a null value due to being declared as a primitive type`. The skeleton declared
-  `int page, int size` without `@RequestParam`, so Spring failed while resolving the arguments, before the
-  controller body was ever reached. The root cause was my prompt, which asked for "NO @RequestParam yet".
-  I found it by reading the failure messages of the test run (reviewed together with a chat assistant)
-  instead of trusting the summary.
-- **What I changed / fixed:** I corrected the skeleton myself with a one-line change per parameter,
-  `@RequestParam(defaultValue = "0") int page` and `@RequestParam(defaultValue = "20") int size`, and kept
-  the `UnsupportedOperationException` body. After that, the run showed seven red tests for the right
-  reasons: six `UnsupportedOperationException` and one `Content type not set` (Spring already answered
-  400 for `page=abc`, but without the problem+json body that the handler will produce).
-- **Improvements to the AI-generated tests:** after the fix I reviewed the generated tests and improved
-  them by hand before committing. I replaced the fully-qualified Hamcrest calls with static imports and
-  added an eighth test for a non-numeric `size` parameter (the agent had only covered `page`), which uses
-  the same handler. The final red run showed eight failing tests for the right reasons: six
-  `UnsupportedOperationException` and two `Content type not set`.
-- **Lesson learned:** a red test only proves something when it fails for the right reason. A TDD skeleton
-  has to be complete enough for the framework to route and bind the request, so the tests reach the
-  behavior under test. I always read the failure reasons, not just the red/green count.
+</details>
 
-### Entry 07 - Story 01, Part 3B: web layer implementation (TDD green)
+### Entry 07: Story 01, Part 3B: web layer implementation (TDD green)
 
-- **Goal:** implement the controller, the DTO mapping and the error handling so the eight
-  `PokemonControllerTest` tests pass, and wire the use case as a bean.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
-- **Prompt used:**
+- **Goal:** implement the controller, the DTO mapping and the error handling so the eight `PokemonControllerTest` tests pass, and wire the use case as a bean.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode (I approved each command one at a time).
+- **Approach:** the design decisions were fixed in the prompt: pagination rules only in the use case, DTO mapping in the web layer, a sanitized 502 body with the real error logged, and the use case registered as a bean without annotating the application class. Copilot generated the `from(...)` mapping methods on the two response records, the controller delegating to the `ListPokemonUseCase` port, a `GlobalExceptionHandler` with three `ProblemDetail` handlers (400 for invalid pagination, 502 for an unavailable provider, 400 for a parameter type mismatch) and `UseCaseConfig`, which registers `ListPokemonService` as a bean.
+- **What I checked (not the assistant's summary):** `git diff --stat` showed only the controller, the two DTOs and the handler modified, plus the new `UseCaseConfig`: no test, no `pom.xml` and no `application.yaml` changed. `grep` found no Spring, Jakarta or Jackson imports in `domain` and `application`, and `getMessage` appeared in the web package only in the 400 handler. I read the 502 handler myself: it returns the fixed text and sends the real exception to the server log, so no internal detail reaches the client. I ran `./mvnw clean verify` myself: BUILD SUCCESS with 24 tests.
+- **Problem found / fix:** none. The agent's summary (24 tests passing) matched my own run, and nothing was added outside the contract.
+- **Lesson:** applying the lesson from Entry 03, an explicit contract left the agent nothing to decide on its own, and the review reduced to verifying the diff and the security-sensitive handler.
+
+<details>
+<summary>Prompt used (exact text)</summary>
 
 ```text
 Step 3B of "User Story 01" (TDD green phase). Make all tests in PokemonControllerTest pass without
@@ -456,33 +364,19 @@ Do the minimum needed. Run ./mvnw clean verify and report the result. If a test 
 of changing the test.
 ```
 
-- **What the AI generated:** the `from(...)` mapping methods on the two response records, the controller
-  delegating to the `ListPokemonUseCase` port with the default `page` and `size`, a
-  `GlobalExceptionHandler` with three `ProblemDetail` handlers (400 for invalid pagination, 502 for an
-  unavailable provider, 400 for a parameter type mismatch) and `UseCaseConfig`, which registers
-  `ListPokemonService` as a bean.
-- **What I checked:** `git diff --stat` showed only the controller, the two DTOs and the handler modified,
-  plus the new `UseCaseConfig`: no test, no `pom.xml` and no `application.yaml` changed; `grep` found no
-  Spring, Jakarta or Jackson imports in `domain` and `application`; a `grep` for `getMessage` in the web
-  package showed it only in the 400 handler. I read the 502 handler myself: it returns the fixed text and
-  sends the real exception to the server log, so no internal detail reaches the client. I ran
-  `./mvnw clean verify` myself: BUILD SUCCESS with 24 tests.
-- **Problems found:** none. The agent's summary (24 tests passing) matched my own run, and nothing
-  was added outside the contract.
-- **What I changed / fixed:** nothing.
-- **Lesson learned:** applying the lesson from Entry 03, I wrote the design decisions into the prompt
-  (validation only in the use case, a sanitized 502 body with the real error logged, DTO mapping in the web
-  layer, the use case registered as a bean without annotating the application class). With the contract
-  explicit, the agent had nothing left to decide on its own, and the review reduced to verifying the diff
-  and the security-sensitive handler.
+</details>
 
-### Entry 08 - Story 01, Part 3C: security rules (TDD red/green)
+### Entry 08: Story 01, Part 3C: security rules (TDD red/green)
 
-- **Goal:** define which routes are public and which are protected, test-first: the Pokémon listing, the
-  OpenAPI docs and the Swagger UI are public, the auth endpoints will be public, and everything else requires
-  authentication.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
-- **Prompts used:**
+- **Goal:** define which routes are public and which are protected, test-first: the Pokémon listing, the OpenAPI docs and the Swagger UI are public, the auth endpoints will be public, and everything else requires authentication.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode (I approved each command one at a time).
+- **Approach:** two prompts. First the red phase, with no security configuration class yet, so the tests failed against Spring Boot's default security. Then the green phase with the design fixed in the prompt. Copilot generated `SecurityRulesTest` with five MockMvc tests, and `SecurityConfig` with a stateless `SecurityFilterChain` (CSRF disabled, the listed public routes, authentication required for everything else, HTTP Basic as a placeholder until login exists).
+- **What I checked (not the assistant's summary):** in the red run, four tests failed for the right reasons: the three public `GET`s answered 401 instead of 200 (Spring Security protects everything by default) and the unauthenticated `POST` answered 403 instead of 401, because the CSRF filter rejected it before authentication. After the implementation I ran `./mvnw clean verify` myself: BUILD SUCCESS with 29 tests. `git diff --stat` showed no existing file modified (no test, no `pom.xml`, no `application.yaml`), only the new `security` package, and the `grep` for Spring, Jakarta and Jackson imports in `domain` and `application` returned nothing.
+- **Problem found / fix:** none. The agent's summary matched my own run. One test (`GET /api/local-pokemon` answers 401) was green from the start, because Spring denies everything by default. I kept it on purpose as a guard test: it fails if a future configuration becomes too permissive.
+- **Lesson:** security rules are easy to specify as tests (which routes are public, which are protected, and which status code each case returns). The red run exposed a detail I would have missed by only reading the code: without disabling CSRF, an unauthenticated write returns 403, not 401. A test that is green before the implementation is not proof of the new behavior; it is a guard, and I label it as such.
+
+<details>
+<summary>Step 3C-a, tests first, red (exact text)</summary>
 
 ```text
 Step 3C-a (TDD red phase): security rules for the API. Follow .github/copilot-instructions.md. Do NOT add or change
@@ -504,6 +398,11 @@ Tests, all WITHOUT credentials:
 Use clear test names that describe the behavior.
 ```
 
+</details>
+
+<details>
+<summary>Step 3C-b, security config, green (exact text)</summary>
+
 ```text
 Step 3C-b (TDD green phase). Make SecurityRulesTest pass without changing any test, and keep all other tests green.
 Follow .github/copilot-instructions.md. Do not add dependencies, do not touch pom.xml, application.yaml, any test, or any
@@ -520,34 +419,22 @@ Design decisions (already fixed, do not change them):
 Do the minimum needed. Run ./mvnw clean verify and report the result. If a test fails, tell me why instead of changing the test.
 ```
 
-- **What the AI generated:** `SecurityRulesTest` with five MockMvc tests, and `SecurityConfig` with a stateless
-  `SecurityFilterChain` (CSRF disabled, the listed public routes, authentication required for everything
-  else, HTTP Basic as a placeholder).
-- **What I checked:** in the red run, four tests failed for the right reasons: the three public `GET`s
-  answered 401 instead of 200 (Spring Security protects everything by default) and the unauthenticated
-  `POST` answered 403 instead of 401, because the CSRF filter rejected it before authentication. After the
-  implementation I ran `./mvnw clean verify` myself: BUILD SUCCESS with 29 tests. `git diff --stat` showed no
-  existing file modified (no test, no `pom.xml`, no `application.yaml`), only the new `security` package, and
-  the `grep` for Spring, Jakarta and Jackson imports in `domain` and `application` returned nothing.
-- **Problems found:** none. The agent's summary matched my own run. One test (`GET /api/local-pokemon`
-  answers 401) was green from the start, because Spring denies everything by default. I kept it on purpose
-  as a guard test: it fails if a future configuration becomes too permissive.
-- **What I changed / fixed:** nothing.
-- **Lesson learned:** security rules are easy to specify as tests (which routes are public, which are
-  protected, and which status code each case returns). The red run exposed a detail I would have missed
-  by only reading the code: without disabling CSRF, an unauthenticated write returns 403, not 401. A test
-  that is green before the implementation is not proof of the new behavior; it is a guard, and I label it as
-  such.
+</details>
 
-### Entry 09 - Story 02: Pokémon detail (TDD red/green)
+### Entry 09: Story 02: Pokémon detail (TDD red/green)
 
-- **Goal:** `GET /api/pokemon/{id}` returning the image, the stats, the description and the evolution chain,
-  with 404, 400 and 502 handling, built test-first across the use case, the PokeAPI adapter and the controller.
-- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
-- **Prompts used:**
+- **Goal:** `GET /api/pokemon/{id}` returning the image, the stats, the description and the evolution chain, with 404, 400 and 502 handling, built test-first across the use case, the PokeAPI adapter and the controller.
+- **Tools:** GitHub Copilot Chat in IntelliJ, Agent mode (I approved each command one at a time), and a chat assistant as a second reviewer of the test file.
+- **Approach:** two prompts. Step 4A (red) created the domain records, exceptions, port, skeletons that throw `UnsupportedOperationException`, and the tests for the use case, the adapter (WireMock, three sequential calls) and the controller. Step 4B (green) fixed the design: the gateway always builds the paths itself and never follows a URL returned by the PokeAPI; a 404 on `/pokemon/{id}` becomes a not-found error, any other failure becomes the 502 case; the description is the first English flavor text with whitespace normalized; the evolution chain is flattened depth-first.
+- **What I checked (not the assistant's summary):**
+  - Red run: 45 tests, the 29 existing ones green and the 16 new ones red (5 use case, 7 adapter, 4 controller), for the right reasons: `UnsupportedOperationException` from the skeletons, and assertion failures where a specific exception was expected. Before committing the red step I read the WireMock stubs: every JSON stub goes through one helper that sends `Content-Type: application/json` (the lesson from Entry 05), and the verified paths use chain id 7, different from the Pokémon id, to prove the adapter does not follow the URL it receives.
+  - Green run: only seven production files changed; no test, fixture, `pom.xml` or `application.yaml` was touched; `grep` found no Spring, Jakarta or Jackson imports in `domain` and `application`; `getMessage` appears only in the 400 and 404 handlers, and the 502 handler keeps returning the fixed text; `./mvnw clean verify`: BUILD SUCCESS with 45 tests.
+  - Real API check: I ran the application and called the endpoint with `curl`: ids 1 and 133 returned the stats, a single-line description and the evolution chain, id 999999 returned 404 and id 0 returned 400.
+- **Problem found / fix:** a gap in my own prompt, caught before the green step while reviewing the test file with a chat assistant: one test uses a species with an empty `flavor_text_entries` list to check an invalid chain URL, and my first 4B prompt did not say what to do without an English description. An `orElseThrow()` would have failed that test with the wrong exception, so I added the rule (empty string, never an exception) to the prompt.
+- **Lesson:** fixing the design decisions in the prompt (how paths are built, which errors map to which status, what the response contains) left the agent nothing to improvise. The one gap was an edge case I had not specified, so from now on I also list the behavior for empty or missing data in every prompt.
 
 <details>
-<summary>Step 4A (tests first, red) and Step 4B (implementation, green)</summary>
+<summary>Step 4A, tests first, red (exact text)</summary>
 
 ```text
 Step 4A of "User Story 02: Pokémon detail" (TDD red phase). Follow .github/copilot-instructions.md. Do NOT add or
@@ -627,6 +514,11 @@ C. infrastructure/web/PokemonDetailControllerTest (@WebMvcTest(PokemonDetailCont
 Use clear test names that describe the behavior.
 ```
 
+</details>
+
+<details>
+<summary>Step 4B, implementation, green (exact text)</summary>
+
 ```text
 Step 4B of "User Story 02" (TDD green phase). Make ALL the new Story 02 tests pass (PokemonDetailServiceTest,
 PokeApiPokemonDetailGatewayTest, PokemonDetailControllerTest) and keep the 29 existing tests green. Follow
@@ -663,27 +555,6 @@ changing the test.
 ```
 
 </details>
-
-- **What I checked:**
-  - Red run: 45 tests, the 29 existing ones green and the 16 new ones red (5 use case, 7 adapter, 4 controller),
-    for the right reasons: `UnsupportedOperationException` from the skeletons, and assertion failures where a
-    specific exception was expected. Before committing the red step I read the WireMock stubs: every JSON stub goes
-    through one helper that sends `Content-Type: application/json` (the lesson from Entry 05), and the verified
-    paths use chain id 7, different from the Pokémon id, to prove the adapter does not follow the URL it receives.
-  - Green run: only seven production files changed; no test, fixture, `pom.xml` or `application.yaml` was
-    touched; `grep` found no Spring, Jakarta or Jackson imports in `domain` and `application`; `getMessage`
-    appears only in the 400 and 404 handlers, and the 502 handler keeps returning the fixed text;
-    `./mvnw clean verify`: BUILD SUCCESS with 45 tests.
-- **Real API check:** I ran the application and called the endpoint with `curl`: ids 1 and 133 returned the stats,
-  a single-line description and the evolution chain, id 999999 returned 404 and id 0 returned 400.
-- **Problem found / fix:** a gap in my own prompt, caught before the green step while reviewing the test file
-  with a chat assistant: one test uses a species with an empty `flavor_text_entries` list to check an invalid
-  chain URL, and my first 4B prompt did not say what to do without an English description. An
-  `orElseThrow()` would have failed that test with the wrong exception, so I added the rule (empty string, never
-  an exception) to the prompt.
-- **Lesson:** fixing the design decisions in the prompt (how paths are built, which errors map to which status,
-  what the response contains) left the agent nothing to improvise. The one gap was an edge case I had not
-  specified, so from now on I also list the behavior for empty or missing data in every prompt.
 
 ### Entry 10: Story 03, local database sync (POST /api/pokemon/{id}/sync, GET /api/local-pokemon)
 
@@ -766,6 +637,42 @@ changing the test.
 - **Problem found / fix:** before this change Swagger UI had no Authorize button, so every protected endpoint returned 401 when tried from the page. I only noticed it by opening the page and looking, not from any test.
 - **Lesson:** a test on the API document proves what the document says, not what the screen does; I checked both. A collection that passes against the real application is worth more than one that only looks complete.
 
+<details>
+<summary>Swagger red prompt, tests first (exact text)</summary>
+
+```text
+TDD, RED phase only. Follow .github/copilot-instructions.md.
+
+Goal: the OpenAPI document served at /v3/api-docs must describe bearer JWT authentication, so that Swagger UI shows the Authorize button and the protected endpoints can be tried from the page.
+
+Write ONE new test class, OpenApiSecurityTest, in src/test/java/com/thaynara/pokehub/infrastructure/web. Use the same setup as the existing SecurityRulesTest: @SpringBootTest, @AutoConfigureMockMvc, @ActiveProfiles("test"), MockMvc, and the same imports for the Spring Boot 4 packages.
+
+Three tests, each calling GET /v3/api-docs:
+1. declaresABearerJwtSecurityScheme: components.securitySchemes.bearerAuth has type "http", scheme "bearer" and bearerFormat "JWT".
+2. marksSyncAndLocalPokemonEndpointsAsRequiringTheToken: POST /api/pokemon/{id}/sync and GET /api/local-pokemon each have a security requirement that contains bearerAuth.
+3. doesNotMarkThePublicListingAsRequiringTheToken: GET /api/pokemon has no security entry.
+
+Use JsonPath assertions. Do NOT write any production code, do not touch any existing test, pom.xml, security classes or any other file.
+Stop after the red phase. Run only this test class and tell me which tests fail and why.
+```
+
+</details>
+
+<details>
+<summary>Swagger green prompt, implementation (exact text)</summary>
+
+```text
+TDD, GREEN phase. Follow .github/copilot-instructions.md. Make the 2 failing tests in OpenApiSecurityTest pass with the MINIMUM code. Do not change any test.
+
+1. Create OpenApiConfiguration in com.thaynara.pokehub.infrastructure.config: a @Configuration class annotated with @SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT") from io.swagger.v3.oas.annotations.
+2. Add a class-level @SecurityRequirement(name = "bearerAuth") to LocalPokemonController (it holds the sync endpoint and all the local-pokemon endpoints). Do not annotate the public controllers, so the public endpoints stay without a lock.
+
+Do NOT touch any test, pom.xml, the security configuration or any other file, and do not add Spring annotations in domain or application.
+Then run the new test class and the WHOLE suite (./mvnw test) and report the numbers.
+```
+
+</details>
+
 ### Entry 15: Demo data seeded on startup (TDD red/green)
 
 - **Goal:** the delivery notes ask for a solution pre-populated with relevant demonstration data; until now only the `demo` user existed and the local Pokémon collection was empty.
@@ -775,6 +682,52 @@ changing the test.
 - **Problem found / fix:** I had first been given a version of this code written by Claude. I did not use it, because the rule of this project is that Copilot generates the code, and nothing of it was committed. Copilot also left an unused import in one test; I left it, since it does not change behavior.
 - **Lesson:** a unit test proves the seeder logic, not that it runs at startup, so I also checked it against a fresh database in Docker.
 
+<details>
+<summary>Red prompt, tests first (exact text)</summary>
+
+```text
+TDD, RED phase only. Follow .github/copilot-instructions.md.
+
+Goal: seed demo Pokémon into the local database on startup, like the existing DemoUserSeeder and DemoUserSeedConfig in com.thaynara.pokehub.infrastructure.config (use them as the pattern).
+
+Create in com.thaynara.pokehub.infrastructure.config:
+1. DemoPokemonSeeder implements CommandLineRunner. Constructor: (LocalPokemonRepository repository, List<LocalPokemon> pokemon). Skeleton only: run(String... args) must have an EMPTY body.
+2. DemoPokemonSeedConfig (@Configuration) with a bean method demoPokemonSeeder(LocalPokemonRepository repository), annotated exactly like the bean in DemoUserSeedConfig (@Profile("!test") and @ConditionalOnProperty pokehub.seed.enabled=true), plus a package-private static method List<LocalPokemon> demoPokemon() that returns List.of() for now.
+
+Create plain JUnit 5 tests (Mockito and AssertJ, no Spring context) in src/test/java/com/thaynara/pokehub/infrastructure/config:
+- DemoPokemonSeederTest:
+  a) savesEveryPokemonThatIsNotStoredYet: repository.findById returns Optional.empty() for every id; after run(), save is called for each Pokémon.
+  b) doesNotOverwriteAPokemonThatAlreadyExists: findById(25) returns an existing Pokémon and findById(133) returns empty; after run(), save is NEVER called for 25 and is called for 133.
+- DemoPokemonSeedConfigTest: demoPokemon() returns exactly 5 Pokémon, ids are unique, and every one has a non-blank localizedName, a non-blank region and a non-empty tags list.
+
+Do NOT: implement the logic of run(), fill the demoPokemon() data, change any existing test, pom.xml, security classes or any other existing file, or put Spring annotations in domain or application.
+Stop after this red phase. Run only these new tests and tell me which fail and why.
+```
+
+</details>
+
+<details>
+<summary>Green prompt, implementation (exact text)</summary>
+
+```text
+TDD, GREEN phase. Follow .github/copilot-instructions.md. Make the 3 failing tests in DemoPokemonSeederTest and DemoPokemonSeedConfigTest pass with the MINIMUM code. Do not change any test.
+
+1. DemoPokemonSeeder.run: for each Pokémon in the list, call repository.findById(pokemon.id()); if it is empty, call repository.save(pokemon). Never overwrite an existing one.
+
+2. DemoPokemonSeedConfig.demoPokemon(): return exactly these 5 Pokémon, as fixed data (do not call PokeAPI). Use the LocalPokemon constructor, in this order of fields: id, name, imageUrl, description, localizedName, region, tags.
+- id 25, name "pikachu", localizedName "ピカチュウ", region "Kanto", tags ["electric", "mascot"], description "Electric mouse Pokémon that stores power in its cheeks and releases it in bursts."
+- id 1, name "bulbasaur", localizedName "フシギダネ", region "Kanto", tags ["grass", "poison", "starter"], description "Seed Pokémon that carries a plant bulb on its back, which grows as it evolves."
+- id 4, name "charmander", localizedName "ヒトカゲ", region "Kanto", tags ["fire", "starter"], description "Lizard Pokémon with a flame burning at the tip of its tail."
+- id 7, name "squirtle", localizedName "ゼニガメ", region "Kanto", tags ["water", "starter"], description "Tiny turtle Pokémon that withdraws into its shell and sprays water."
+- id 133, name "eevee", localizedName "イーブイ", region "Kanto", tags ["normal", "branching-evolution"], description "Evolution Pokémon with an unstable genetic makeup that can evolve in several ways."
+imageUrl for each: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png" with the real id.
+
+Do NOT touch any other file, pom.xml, security classes, application.yaml or existing tests, and do not add Spring annotations anywhere in domain or application.
+Then run the new tests and the WHOLE suite (./mvnw test), and report the numbers.
+```
+
+</details>
+
 ### Entry 16: Cache for PokeAPI responses (TDD red/green)
 
 - **Goal:** the exercise lists a cache for service responses as a nice to have; until now every request called PokeAPI.
@@ -783,6 +736,51 @@ changing the test.
 - **What I checked (not the assistant's summary):** red: the assistant predicted two failing tests and the run had four; I read the test file and the two extra ones were valid reds, because they check that repeated calls and the 59-second read are served from the cache. Green: the diff touched exactly four files (`pom.xml` with only the Caffeine dependency, the configuration, the decorator and `application.yaml`) and no test, then the whole suite passed with 138 tests. With the application running in Docker, the same detail request took about 0.6 s the first time and about 4 ms the second, and the page listing about 0.16 s and about 4 ms.
 - **Problem found / fix:** the cache is in memory and per instance, and data can be up to 5 minutes old. I documented this in the README limitations instead of leaving it out.
 - **Lesson:** inject the clock so time-based behavior is testable without waiting, and put the cache on the port so the business layers do not know it exists.
+
+<details>
+<summary>Red prompt, tests first (exact text)</summary>
+
+```text
+TDD, RED phase only. Follow .github/copilot-instructions.md.
+
+Goal: add a cache in front of the PokeAPI gateway, as a decorator in the infrastructure layer. domain and application must not change, and the PokemonGateway port (findPage(int page, int size) and findById(int id)) must not change.
+
+Create in com.thaynara.pokehub.infrastructure.pokeapi:
+- CachingPokemonGateway implements PokemonGateway. Constructor: (PokemonGateway delegate, java.time.Duration ttl, long maxSize, java.util.function.LongSupplier nanoClock). Skeleton only: both methods simply call the delegate (no caching yet). No Caffeine yet: do NOT touch pom.xml in this phase.
+
+Create a plain JUnit 5 test class CachingPokemonGatewayTest in src/test/java/com/thaynara/pokehub/infrastructure/pokeapi, using Mockito for the delegate and AssertJ (no Spring context). Use a controllable fake clock (an AtomicLong passed as nanoClock) so no test sleeps. Build PokemonPage and PokemonDetail with their real constructors (look at the domain model).
+Tests:
+1. returnsTheCachedPageForTheSamePageAndSize: two calls findPage(0, 20) return the same result and the delegate is called once.
+2. returnsTheCachedDetailForTheSameId: two calls findById(25) return the same result and the delegate is called once.
+3. cachesDifferentKeysSeparately: findPage(0, 20) and findPage(1, 20), and findById(25) and findById(133), each reach the delegate once.
+4. doesNotCacheFailures: the first findById(25) call throws PokemonProviderUnavailableException, the second returns a detail; the result of the second call is returned and the delegate is called twice.
+5. reloadsAnEntryAfterTheTtlExpires: ttl of 60 seconds; call findById(25), advance the fake clock by 61 seconds, call again; the delegate is called twice. Also check that advancing only 59 seconds still serves the cached value.
+
+Do NOT: implement any caching, add dependencies, change PokeApiConfig, any existing test, pom.xml, application.yaml or any other existing file.
+Stop after the red phase. Run only this test class and tell me which tests fail and why.
+```
+
+</details>
+
+<details>
+<summary>Green prompt, implementation (exact text)</summary>
+
+```text
+TDD, GREEN phase. Follow .github/copilot-instructions.md. Make the 4 failing tests in CachingPokemonGatewayTest pass with the MINIMUM code. Do not change any test.
+
+1. pom.xml: add ONLY the dependency com.github.ben-manes.caffeine:caffeine (no version, it is managed by Spring Boot). Nothing else in the pom.
+
+2. CachingPokemonGateway (plain Java, no Spring annotations, no @Cacheable, no @EnableCaching): use two Caffeine caches built with expireAfterWrite(ttl), maximumSize(maxSize) and ticker(nanoClock::getAsLong): one for pages keyed by a small private record (page, size), one for details keyed by the id. Read through cache.get(key, k -> delegate...), so an exception thrown by the delegate propagates unchanged and is never cached.
+
+3. PokeApiConfig: wrap the real gateway: new CachingPokemonGateway(new PokeApiPokemonGateway(pokeApiRestClient), Duration.ofSeconds(ttlSeconds), maxSize, System::nanoTime), with @Value("${pokeapi.cache.ttl-seconds:300}") and @Value("${pokeapi.cache.max-size:500}").
+
+4. application.yaml: add only the two keys pokeapi.cache.ttl-seconds: 300 and pokeapi.cache.max-size: 500 under the existing pokeapi section.
+
+Do NOT touch any test, any other file, the domain or application layers, or security.
+Then run the new test class and the WHOLE suite (./mvnw test) and report the numbers.
+```
+
+</details>
 
 ## 5. Exercise: Task Management API
 
