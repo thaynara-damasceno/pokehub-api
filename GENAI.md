@@ -7,7 +7,7 @@ task-management exercise requested in the technical interview.
 ## At a glance
 
 - **What is in here:** section 1 is how I work with AI, section 2 the tools, section 3 my validation checklist, section 4 the prompt log (one entry per step up to Entry 08, one per story from Entry 09 on), section 5 the Task Management API exercise, and section 6 my interview cheat sheet.
-- **Tools and roles:** GitHub Copilot (Agent mode in IntelliJ) generated almost all application and test code from narrowly scoped prompts (the few manual fixes are in Entries 05 and 06). Claude (chat assistant) planned the steps, drafted and reviewed the prompts, and reviewed diffs and test output. Claude also wrote the Dockerfile, `.dockerignore`, the compose app service and the README, which I pasted, reviewed and verified.
+- **Tools and roles:** GitHub Copilot (Agent mode in IntelliJ) generated almost all application and test code from narrowly scoped prompts (the few manual fixes are in Entries 05 and 06). Claude (chat assistant) planned the steps, drafted and reviewed the prompts, and reviewed diffs and test output. Claude also wrote the Dockerfile, `.dockerignore`, the compose app service, the Postman collection, the OpenAPI security configuration with its test, and the README, which I pasted, reviewed and verified.
 - **How I verified:** after every step I read the diff and checked mechanically instead of trusting the tool's summary: a `grep` for framework imports in `domain` and `application`, `git diff --stat` on tests, `pom.xml` and security, the full test suite, and `curl` against the running application. Stories 01 to 04 and authentication were built test-first, and the failing-test commit comes before the implementation commit in the history.
 - **Where the AI or my prompts went wrong, and what I did (details in the entries):**
   - Entry 03: its tests rewrote fixture URLs to point at WireMock, which would have forced the adapter to follow URLs returned by an external service; its summary said everything was fine, and I found the gap with a `grep` on the generated test and a second reviewer, then fixed the design with a narrower prompt.
@@ -15,7 +15,7 @@ task-management exercise requested in the technical interview.
   - Entry 06: the agent said all seven tests were red as expected, but four failed for the wrong reason, because my prompt asked for a skeleton without `@RequestParam`; I found it by reading the failure messages.
   - Entry 12: two of my own red-phase prompts produced false reds: a JWT test with a fixed clock that looked expired, and a demo-user skeleton that broke every context test; I fixed both.
   - Section 5: in the Task API exercise the security chain ended with `anyRequest().permitAll()`, and page size had no limit until I added a test and fixed it.
-- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 13).
+- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 14).
 
 ## 1. Principles
 
@@ -31,7 +31,7 @@ task-management exercise requested in the technical interview.
 | Tool | What I used it for |
 |---|---|
 | GitHub Copilot (IntelliJ) | Code generation: models, adapters, mappers, test scaffolding |
-| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs and explaining errors. It also wrote the Dockerfile, .dockerignore, compose app service and README, which I pasted, reviewed and verified. Almost all application and test code was generated with Copilot; the few manual fixes are in Entries 05 and 06 |
+| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs and explaining errors. It also wrote the Dockerfile, .dockerignore, compose app service, Postman collection, OpenAPI security configuration with its test, and README, which I pasted, reviewed and verified. Almost all other application and test code was generated with Copilot; the few manual fixes are in Entries 05 and 06 |
 
 ## 3. How I validate AI-generated code
 
@@ -757,6 +757,15 @@ changing the test.
 - **Problem found / fix:** my first run was fully cached and did not prove a clean build, so I repeated it without cache and with a fresh volume. While writing the README I also found a Caffeine dependency that no code used (the cache was planned and never built), and removed it so the `pom.xml` matches the code. All 127 tests and a no-cache image build still passed afterwards.
 - **Lesson:** a cached build is not evidence; test the path a reviewer will take. An unused dependency is a claim the project does not keep.
 
+### Entry 14: Postman collection and bearer token support in Swagger
+
+- **Goal:** make the API easy to try without a frontend: a Postman collection that covers the cases built so far, and a way to call the protected endpoints from Swagger UI.
+- **Tools:** Claude (generated the collection with a Python script, and wrote the test and the configuration that I pasted). GitHub Copilot was not used for this step.
+- **Approach:** the collection has 37 requests in four folders (auth, public Pokémon, local Pokémon, security and docs). Every request has test scripts, the first folder logs in as the demo user and saves the token in a collection variable, and the local Pokémon folder runs in order (sync, sync again, update, sync keeps my data, validation errors, delete). For Swagger, a failing test came first (it reads `/v3/api-docs` and expects a bearer JWT scheme), then I added a small configuration class that declares the scheme and a `@SecurityRequirement` on the controller that holds sync and the local endpoints. The public endpoints stay without a lock.
+- **What I checked (not the assistant's summary):** I ran the collection with Newman against the running application: 37 requests, 53 assertions, 0 failed. The test was red before the change: two of its three cases failed because the scheme did not exist, and the third (public listing has no security) already passed, so it is a guard, not a red. After the change the full suite had 130 passing tests, up from 127. In Swagger UI I saw the Authorize button, logged in, pasted the token, and `POST /api/pokemon/25/sync` returned 200. I also cloned the public repository into an empty folder and the build passed there with the same 130 tests.
+- **Problem found / fix:** before this change Swagger UI had no Authorize button, so every protected endpoint returned 401 when tried from the page. I only noticed it by opening the page and looking, not from any test.
+- **Lesson:** a test on the API document proves what the document says, not what the screen does; I checked both. A collection that passes against the real application is worth more than one that only looks complete.
+
 ## 5. Exercise: Task Management API
 
 This exercise is separate from the PokeHub project. I ran it in a local scratch repository that is not published, so the generated code would not mix with the reviewed project. This section holds the prompt, representative samples, and what I found when I reviewed the output.
@@ -954,7 +963,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 ## 6. Interview cheat sheet
 
-**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 127 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
+**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 130 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
 
 **Likely questions** (answer with a real example from section 4):
 

@@ -14,7 +14,7 @@ docker compose up --build
 ```
 
 The API is then available at `http://localhost:8080` and the interactive docs at
-`http://localhost:8080/swagger-ui/index.html`. A demo user is created on the first start.
+`http://localhost:8080/swagger-ui/index.html`. A demo user is created on the first start. To try the protected endpoints in Swagger, call `POST /api/auth/login`, click **Authorize** and paste the `accessToken` (without the word `Bearer`).
 
 | What | Value |
 |---|---|
@@ -109,7 +109,7 @@ domain          (records and rules, plain Java)
 
 Every story was built test-first, and the red to green sequence is visible in the commit history
 (`test:` commit, then `feat:` commit, with `refactor:` where needed). The project was built with
-GenAI tools (GitHub Copilot for code generation; Claude for planning and review, and it also wrote the Dockerfile and this README). The full account,
+GenAI tools (GitHub Copilot for code generation; Claude for planning and review, and it also wrote the Dockerfile, the Postman collection, the OpenAPI security configuration with its test, and this README). The full account,
 including the prompts, what I checked, and the problems found, is in [GENAI.md](GENAI.md).
 
 ## Known limitations
