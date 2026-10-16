@@ -64,11 +64,23 @@ public class LocalPokemonService implements
 
     @Override
     public LocalPokemon update(int id, String localizedName, String region, List<String> tags) {
-        throw new UnsupportedOperationException();
+        LocalPokemon existing = localPokemonRepository.findById(id)
+                .orElseThrow(() -> new LocalPokemonNotFoundException(id));
+        LocalPokemon updated = new LocalPokemon(
+                existing.id(),
+                existing.name(),
+                existing.imageUrl(),
+                existing.description(),
+                localizedName,
+                region,
+                tags);
+        return localPokemonRepository.save(updated);
     }
 
     @Override
     public void delete(int id) {
-        throw new UnsupportedOperationException();
+        localPokemonRepository.findById(id)
+                .orElseThrow(() -> new LocalPokemonNotFoundException(id));
+        localPokemonRepository.deleteById(id);
     }
 }

@@ -36,7 +36,7 @@ public class JpaLocalPokemonRepositoryAdapter implements LocalPokemonRepository 
 
     @Override
     public void deleteById(int id) {
-        throw new UnsupportedOperationException();
+        repository.deleteById(id);
     }
 
     private LocalPokemon toDomain(LocalPokemonEntity entity) {
