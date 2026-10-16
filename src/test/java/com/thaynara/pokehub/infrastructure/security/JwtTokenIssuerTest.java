@@ -1,20 +1,16 @@
 package com.thaynara.pokehub.infrastructure.security;
 
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.MACVerifier;
-import com.nimbusds.jwt.SignedJWT;
 import com.thaynara.pokehub.application.model.AccessToken;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Date;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,10 +27,7 @@ class JwtTokenIssuerTest {
     void issuesTokenWithSubjectIssueTimeExpirationAndTtl() {
         AccessToken accessToken = new JwtTokenIssuer(SECRET, TTL_SECONDS, FIXED_CLOCK)
                 .issue("trainer");
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(
-                        new SecretKeySpec(SECRET_BYTES, "HmacSHA256"))
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
+        NimbusJwtDecoder decoder = decoder(SECRET_BYTES);
 
         Jwt jwt = decoder.decode(accessToken.value());
 
@@ -50,10 +43,7 @@ class JwtTokenIssuerTest {
                 .issue("trainer");
         byte[] differentSecret = "a-different-secret-key-of-32-bytes".getBytes(
                 java.nio.charset.StandardCharsets.UTF_8);
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(
-                        new SecretKeySpec(differentSecret, "HmacSHA256"))
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
+        NimbusJwtDecoder decoder = decoder(differentSecret);
 
         assertThatThrownBy(() -> decoder.decode(accessToken.value()))
                 .isInstanceOf(JwtException.class);
@@ -75,5 +65,14 @@ class JwtTokenIssuerTest {
     void rejectsTtlLessThanOneSecond() {
         assertThatThrownBy(() -> new JwtTokenIssuer(SECRET, 0, FIXED_CLOCK))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private NimbusJwtDecoder decoder(byte[] secret) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(
+                        new SecretKeySpec(secret, "HmacSHA256"))
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
+        decoder.setJwtValidator(token -> OAuth2TokenValidatorResult.success());
+        return decoder;
     }
 }
