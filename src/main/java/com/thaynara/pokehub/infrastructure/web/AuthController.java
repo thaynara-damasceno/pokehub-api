@@ -26,11 +26,12 @@ public class AuthController {
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public void register(@RequestBody RegisterRequest request) {
-        throw new UnsupportedOperationException();
+        registerUserUseCase.register(request.username(), request.password());
     }
 
     @PostMapping("/login")
     public TokenResponse login(@RequestBody LoginRequest request) {
-        throw new UnsupportedOperationException();
+        return TokenResponse.from(
+                authenticateUserUseCase.authenticate(request.username(), request.password()));
     }
 }
