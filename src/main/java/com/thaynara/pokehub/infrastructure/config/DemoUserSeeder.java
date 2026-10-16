@@ -1,6 +1,7 @@
 package com.thaynara.pokehub.infrastructure.config;
 
 import com.thaynara.pokehub.application.port.in.RegisterUserUseCase;
+import com.thaynara.pokehub.domain.exception.UsernameAlreadyTakenException;
 import org.springframework.boot.CommandLineRunner;
 
 public class DemoUserSeeder implements CommandLineRunner {
@@ -20,5 +21,10 @@ public class DemoUserSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        try {
+            registerUserUseCase.register(username, password);
+        } catch (UsernameAlreadyTakenException ignored) {
+            // The demo user may already exist.
+        }
     }
 }
