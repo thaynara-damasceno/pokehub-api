@@ -1,0 +1,22 @@
+{
+  "chain": {
+    "species": {
+      "name": "bulbasaur"
+    },
+    "evolves_to": [
+      {
+        "species": {
+          "name": "ivysaur"
+        },
+        "evolves_to": [
+          {
+            "species": {
+              "name": "venusaur"
+            },
+            "evolves_to": []
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -3,6 +3,7 @@ package com.thaynara.pokehub.infrastructure.pokeapi;
 import com.thaynara.pokehub.application.port.out.PokemonGateway;
 import com.thaynara.pokehub.domain.exception.PokemonProviderUnavailableException;
 import com.thaynara.pokehub.domain.model.Pokemon;
+import com.thaynara.pokehub.domain.model.PokemonDetail;
 import com.thaynara.pokehub.domain.model.PokemonPage;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -40,6 +41,11 @@ public class PokeApiPokemonGateway implements PokemonGateway {
                     .toList();
             return new PokemonPage(pokemon, page, size, response.count());
         }
+    }
+
+    @Override
+    public PokemonDetail findById(int id) {
+        throw new UnsupportedOperationException();
     }
 
     private Pokemon fetchPokemon(String name) {
