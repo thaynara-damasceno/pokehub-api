@@ -14,8 +14,9 @@ task-management exercise requested in the technical interview.
   - Entry 05: a refactor turned the build red because the JSON test stubs had no `Content-Type`; the old code parsed every body as a string and had been hiding it. I confirmed the real header with `curl -I` and fixed the stubs by hand.
   - Entry 06: the agent said all seven tests were red as expected, but four failed for the wrong reason, because my prompt asked for a skeleton without `@RequestParam`; I found it by reading the failure messages.
   - Entry 12: two of my own red-phase prompts produced false reds: a JWT test with a fixed clock that looked expired, and a demo-user skeleton that broke every context test; I fixed both.
+  - Entry 17: login with a missing username or password ended in an unhandled exception (HTTP 500); no test or Postman request had tried it. A final review of the published code suspected it, a probe test confirmed it, and I fixed it test-first.
   - Section 5: in the Task API exercise the security chain ended with `anyRequest().permitAll()`, and page size had no limit until I added a test and fixed it.
-- **A note on format:** all 16 entries follow the same compact format (template at the start of section 4), and the prompts are collapsed under each entry. Entries 10 to 12 hold a condensed description of the prompts instead of the full text, and Entry 13 has none because Copilot was not used.
+- **A note on format:** all 17 entries follow the same compact format (template at the start of section 4), and the prompts are collapsed under each entry. Entries 10 to 12 hold a condensed description of the prompts instead of the full text, and Entry 13 has none because Copilot was not used.
 
 ## 1. Principles
 
@@ -54,7 +55,7 @@ Every entry uses the same compact format:
 - **What I checked (not the assistant's summary):** the mechanical checks and test runs I did myself.
 - **Problem found / fix:** what went wrong and what I did about it, or none.
 - **Lesson:** what I do differently now.
-- **Prompts:** collapsed under the entry (exact text for Entries 01 to 09 and 14 to 16; a condensed description for Entries 10 to 12; none for Entry 13, which did not use Copilot).
+- **Prompts:** collapsed under the entry (exact text for Entries 01 to 09 and 14 to 17; a condensed description for Entries 10 to 12; none for Entry 13, which did not use Copilot).
 
 ### Entry 01: Story 01, Part 1A: domain, ports and failing tests
 
@@ -782,6 +783,46 @@ Then run the new test class and the WHOLE suite (./mvnw test) and report the num
 
 </details>
 
+### Entry 17: Login with a missing username or password (found in a final review, TDD red/green)
+
+- **Goal:** fix a defect found after the project was feature-complete: `POST /api/auth/login` with `{}` or with only a password ended in an unhandled exception (`The given id must not be null`), which the server turns into HTTP 500. It should answer the same generic 401 as a wrong password.
+- **Tools:** Claude read the published repository (production code, tests and documents) as a final review and suspected the defect from the code. I confirmed it with a temporary probe test that Claude wrote, which I ran in a throwaway clone and deleted; it was never committed. GitHub Copilot generated the test and the fix from two prompts (a red prompt and a green prompt, each with a "do not touch" list) that I wrote with Claude's help. Claude did not write code that is in the project in this step.
+- **Approach:** the design was fixed in the prompt: the guard lives in `AuthService.authenticate` (application layer, no framework), and a null username or password throws the same `InvalidCredentialsException` before the repository, the password hasher or the token issuer is touched, so missing input and wrong credentials look identical to the client. Red: one parameterized test with three argument pairs. Green: a three-line guard as the first statement of `authenticate`.
+- **What I checked (not the assistant's summary):** before the fix, the probe showed that `{}` and password-only threw the exception, while username-only already answered 401 (the reviewer's guess that BCrypt would also throw on a null password was wrong). Red: `AuthServiceTest` ran 13 cases with 3 failures, all in the new test and all because the repository was called (`verifyNoInteractions`), while the expected exception was already thrown; the number matched the prediction. Green: the diff touched only `AuthService.java` (three added lines) and no test, and the whole suite passed with 141 tests. After the fix, the same probe on the branch showed 401 `application/problem+json` for `{}`, username-only, password-only and a wrong password, and 200 for the correct password.
+- **Problem found / fix:** registration already rejected null input and had tests for it; login did not, and no test or Postman request sent a login without a username, so 138 green tests never showed it. It was found by reading the published code, not by running anything. Two things I saw in the same review and did not change: a malformed JSON body answers 400 through Spring's default handler, without a `problem+json` body, and two simultaneous registrations of the same new username are not handled specially (the existence check and the save are separate steps); the second one is in the README limitations.
+- **Lesson:** a green suite proves what was tested. For every endpoint input I now ask what happens when it is missing or null, and in this case the answer came from an independent read of the published code plus a probe that confirmed it before I changed anything.
+
+<details>
+<summary>Red prompt, tests first (exact text)</summary>
+
+```text
+TDD, RED phase only. Follow .github/copilot-instructions.md.
+
+Goal: POST /api/auth/login with a missing username or password currently ends in an unhandled exception (a null username reaches userRepository.findByUsername(null) and Spring Data throws IllegalArgumentException "The given id must not be null", which becomes HTTP 500). The expected behavior is the same generic invalid-credentials error as for a wrong password.
+
+Add ONE parameterized test to the existing src/test/java/com/thaynara/pokehub/application/usecase/AuthServiceTest.java, following the style, fixtures and naming of the tests already in that class:
+- rejectsMissingUsernameOrPasswordWithInvalidCredentialsAndTouchesNothing: for the argument pairs (null, "password-123"), ("trainer", null) and (null, null), authenticate(username, password) throws InvalidCredentialsException, and the UserRepository, the PasswordHasher and the TokenIssuer mocks have no interactions at all (verifyNoInteractions).
+
+Do NOT change AuthService or any production code, do not touch any other test, pom.xml, application.yaml, security classes or any other file.
+Stop after the red phase. Run only AuthServiceTest and tell me which tests fail and why.
+```
+
+</details>
+
+<details>
+<summary>Green prompt, implementation (exact text)</summary>
+
+```text
+TDD, GREEN phase. Follow .github/copilot-instructions.md. Make the 3 failing cases of rejectsMissingUsernameOrPasswordWithInvalidCredentialsAndTouchesNothing in AuthServiceTest pass with the MINIMUM code. Do not change any test.
+
+In AuthService.authenticate, add as the very first statement: if username is null or rawPassword is null, throw new InvalidCredentialsException(). Nothing else changes: the lookup, the password check and the token issuing stay exactly as they are, and register is not touched.
+
+Do NOT touch any test, any other file, pom.xml, application.yaml, security classes, or add Spring annotations anywhere in domain or application.
+Then run AuthServiceTest and the WHOLE suite (./mvnw test) and report the numbers.
+```
+
+</details>
+
 ## 5. Exercise: Task Management API
 
 This exercise is separate from the PokeHub project. I ran it in a local scratch repository that is not published, so the generated code would not mix with the reviewed project. This section holds the prompt, representative samples, and what I found when I reviewed the output.
@@ -979,7 +1020,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 ## 6. Interview cheat sheet
 
-**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 138 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
+**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 141 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
 
 **Likely questions** (answer with a real example from section 4):
 

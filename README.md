@@ -134,4 +134,5 @@ including the prompts, what I checked, and the problems found, is in [GENAI.md](
 - BCrypt has a 72-byte limit, while the password length check counts characters, so a password with accented characters can pass the check and still exceed 72 bytes.
 - Registration reveals whether a username exists; there is no rate limiting, token refresh or revocation.
 - Concurrent first-time syncs of the same Pokémon are not handled specially.
+- Concurrent registrations of the same new username are not handled specially (the existence check and the save are separate steps).
 - Demo credentials and the default JWT secret are committed for convenience.
