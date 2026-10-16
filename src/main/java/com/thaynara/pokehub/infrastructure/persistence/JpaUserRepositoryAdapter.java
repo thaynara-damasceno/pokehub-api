@@ -16,16 +16,27 @@ public class JpaUserRepositoryAdapter implements UserRepository {
 
     @Override
     public Optional<User> findByUsername(String username) {
-        throw new UnsupportedOperationException();
+        return repository.findById(username).map(this::toDomain);
     }
 
     @Override
     public boolean existsByUsername(String username) {
-        throw new UnsupportedOperationException();
+        return repository.existsById(username);
     }
 
     @Override
     public User save(User user) {
-        throw new UnsupportedOperationException();
+        return toDomain(repository.save(toEntity(user)));
+    }
+
+    private User toDomain(UserEntity entity) {
+        return new User(entity.getUsername(), entity.getPasswordHash());
+    }
+
+    private UserEntity toEntity(User user) {
+        UserEntity entity = new UserEntity();
+        entity.setUsername(user.username());
+        entity.setPasswordHash(user.passwordHash());
+        return entity;
     }
 }
