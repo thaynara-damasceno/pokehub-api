@@ -13,3 +13,7 @@ pokeapi:
   base-url: https://pokeapi.co/api/v2
   connect-timeout-ms: 2000
   read-timeout-ms: 5000
+pokehub:
+  jwt:
+    secret: ${JWT_SECRET:pokehub-demo-secret-change-me-0123456789}
+    ttl-seconds: ${JWT_TTL_SECONDS:3600}

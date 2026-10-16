@@ -7,11 +7,11 @@ public class BcryptPasswordHasher implements PasswordHasher {
 
     @Override
     public String hash(String rawPassword) {
-        throw new UnsupportedOperationException();
+        return new BCryptPasswordEncoder().encode(rawPassword);
     }
 
     @Override
     public boolean matches(String rawPassword, String passwordHash) {
-        throw new UnsupportedOperationException();
+        return new BCryptPasswordEncoder().matches(rawPassword, passwordHash);
     }
 }
