@@ -101,6 +101,24 @@ class AuthServiceTest {
         verify(tokenIssuer).issue("trainer");
     }
 
+    @ParameterizedTest
+    @MethodSource("missingCredentials")
+    void rejectsMissingUsernameOrPasswordWithInvalidCredentialsAndTouchesNothing(
+            String username,
+            String password) {
+        assertThatThrownBy(() -> authService.authenticate(username, password))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        verifyNoInteractions(userRepository, passwordHasher, tokenIssuer);
+    }
+
+    static Stream<Arguments> missingCredentials() {
+        return Stream.of(
+                Arguments.of(null, "password-123"),
+                Arguments.of("trainer", null),
+                Arguments.of(null, null));
+    }
+
     @Test
     void returnsIdenticalInvalidCredentialsForUnknownUserAndWrongPassword() {
         when(userRepository.findByUsername("unknown")).thenReturn(Optional.empty());
