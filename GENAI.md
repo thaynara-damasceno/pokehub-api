@@ -712,6 +712,29 @@ changing the test.
 - **Problem found / fix:** a verification `git diff` on the exception handler came back empty while the agent reported adding one. I did not accept either claim: `git status`, `git show` and `grep` showed the handler was uncommitted on disk and the red commit still held the skeleton, so the history was clean. It was my own check that had been unreliable, not the code.
 - **Lesson:** one empty diff is not evidence; cross-check with `git status` and `git show` before concluding. Also, a handler for an exception nothing throws yet should wait for the story that needs it, test first.
 
+## Entry 12: Authentication (register, login, JWT) and demo user
+
+- **Goal:** replace the placeholder HTTP Basic with real authentication: `POST /api/auth/register`, `POST /api/auth/login` returning a signed JWT, bearer validation on every protected route, and a seeded demo user so a reviewer can log in without registering.
+- **Tools:** Claude (planning, prompt drafting, review of diffs and test output); GitHub Copilot Agent (code generation).
+- **Approach:** nine TDD steps on one branch, each with a failing-test commit followed by an implementation commit: use cases (`AuthService`, plain Java, ports for the user repository, password hasher and token issuer), JPA user adapter, BCrypt hasher and HS256 token issuer, auth controller, switch of `SecurityConfig` to the OAuth2 resource server, and the demo user seeder. Login returns the same generic 401 for an unknown user and for a wrong password.
+
+<details>
+<summary>Prompts (condensed)</summary>
+
+- **Red / Green, use cases:** `User` record, three exceptions, ports, `AuthService` as a skeleton, then implemented; registration validation, uniform credential error.
+- **Red / Green, persistence:** `UserEntity` (table `app_users`), Spring Data repository, adapter with private mapping.
+- **Red / Green, BCrypt and JWT:** plain classes first, then bean wiring and the `pokehub.jwt.*` properties with an environment-variable override.
+- **Red / Green, controller:** `AuthController` skeleton, then delegation and three exception handlers (409, 400, 401).
+- **Red / Green, security:** tests that issue a real token and call a protected route, then replace `httpBasic()` with the JWT resource server and a `JwtDecoder` bean.
+- **Red / Green, seed:** `CommandLineRunner` that registers the demo user and ignores only "already taken", behind a property and a profile.
+
+</details>
+
+- **What I checked (not the agent's summary):** diffs on `src/test`, `pom.xml`, resources and security were empty after each green step; no Spring or JPA annotations in domain/application; no logging of passwords, secrets or tokens; manual `curl` against Postgres: register 201, duplicate 409, short password 400, wrong password and unknown user return the identical 401 message, a valid token opens a protected route, a missing or tampered token returns 401, and the database stores a BCrypt hash (`$2a$10$`), never the password. The demo user can log in, and restarting the application with the user already present starts cleanly.
+- **Problems found / fixes:** (1) a red-phase JWT test used a fixed 2026-01 clock with a default decoder that validates expiry against the real clock, so a correct token looked expired; the test was fixed in its own commit, relaxing only the timestamp validator. (2) My seeder red-phase prompt made the skeleton throw inside a `CommandLineRunner`, which broke every Spring context test; the agent stopped instead of touching forbidden files, and I changed the skeleton to an empty body. (3) The agent added `@Profile("!test")` on its own because the test profile inherits the main YAML; I reviewed it and kept it. (4) The agent also removed unused imports in a test I had asked it to change minimally.
+- **Lesson:** a red skeleton must never make existing tests fail for the wrong reason, so check the whole suite, not just the new tests. Also, an empty `git diff` can come from the pager: use `git --no-pager diff` before concluding anything.
+- **Known limitations (for the README):** the demo credentials and the default JWT secret are demonstration values; BCrypt limits passwords to 72 bytes while validation counts characters; registration reveals whether a username exists; there is no token refresh or revocation.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
