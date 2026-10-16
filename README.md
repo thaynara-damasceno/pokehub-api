@@ -14,7 +14,7 @@ docker compose up --build
 ```
 
 The API is then available at `http://localhost:8080` and the interactive docs at
-`http://localhost:8080/swagger-ui/index.html`. A demo user is created on the first start. To try the protected endpoints in Swagger, call `POST /api/auth/login`, click **Authorize** and paste the `accessToken` (without the word `Bearer`).
+`http://localhost:8080/swagger-ui/index.html`. A demo user and five demo Pokémon (Pikachu, Bulbasaur, Charmander, Squirtle, Eevee) are created on the first start. To try the protected endpoints in Swagger, call `POST /api/auth/login`, click **Authorize** and paste the `accessToken` (without the word `Bearer`).
 
 | What | Value |
 |---|---|
@@ -124,4 +124,3 @@ including the prompts, what I checked, and the problems found, is in [GENAI.md](
 - Registration reveals whether a username exists; there is no rate limiting, token refresh or revocation.
 - Concurrent first-time syncs of the same Pokémon are not handled specially.
 - Demo credentials and the default JWT secret are committed for convenience.
-- The only demo data is the `demo` user; the local Pokémon collection starts empty until a sync.

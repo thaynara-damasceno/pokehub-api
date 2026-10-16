@@ -15,7 +15,7 @@ task-management exercise requested in the technical interview.
   - Entry 06: the agent said all seven tests were red as expected, but four failed for the wrong reason, because my prompt asked for a skeleton without `@RequestParam`; I found it by reading the failure messages.
   - Entry 12: two of my own red-phase prompts produced false reds: a JWT test with a fixed clock that looked expired, and a demo-user skeleton that broke every context test; I fixed both.
   - Section 5: in the Task API exercise the security chain ended with `anyRequest().permitAll()`, and page size had no limit until I added a test and fixed it.
-- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 14).
+- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 15).
 
 ## 1. Principles
 
@@ -766,6 +766,15 @@ changing the test.
 - **Problem found / fix:** before this change Swagger UI had no Authorize button, so every protected endpoint returned 401 when tried from the page. I only noticed it by opening the page and looking, not from any test.
 - **Lesson:** a test on the API document proves what the document says, not what the screen does; I checked both. A collection that passes against the real application is worth more than one that only looks complete.
 
+### Entry 15: Demo data seeded on startup (TDD red/green)
+
+- **Goal:** the delivery notes ask for a solution pre-populated with relevant demonstration data; until now only the `demo` user existed and the local Pokémon collection was empty.
+- **Tools:** GitHub Copilot generated the tests, the skeleton and the implementation from two prompts (a red prompt and a green prompt, each with a "do not touch" list) that I wrote with Claude's help. Claude did not write code in this step.
+- **Approach:** `DemoPokemonSeeder` is a `CommandLineRunner` that receives the `LocalPokemonRepository` port and a list of Pokémon, and saves only the ones that are not stored yet, so a restart never overwrites my edits. The five Pokémon (Pikachu, Bulbasaur, Charmander, Squirtle, Eevee) are fixed data in `DemoPokemonSeedConfig`, with a Japanese localized name, region and tags, so the system starts even if PokeAPI is down. The bean has the same conditions as the demo user seeder: not in the test profile, and only when `pokehub.seed.enabled` is true.
+- **What I checked (not the assistant's summary):** red: three tests failed for the intended reasons (nothing was saved, and the list was empty) and only four new files existed. Green: the diff touched two production files and no test, then the whole suite passed with 133 tests. Then I ran `docker compose down -v` and `docker compose up --build` from scratch, logged in as `demo` and listed `/api/local-pokemon`: the five Pokémon were there without any sync.
+- **Problem found / fix:** I had first been given a version of this code written by Claude. I did not use it, because the rule of this project is that Copilot generates the code, and nothing of it was committed. Copilot also left an unused import in one test; I left it, since it does not change behavior.
+- **Lesson:** a unit test proves the seeder logic, not that it runs at startup, so I also checked it against a fresh database in Docker.
+
 ## 5. Exercise: Task Management API
 
 This exercise is separate from the PokeHub project. I ran it in a local scratch repository that is not published, so the generated code would not mix with the reviewed project. This section holds the prompt, representative samples, and what I found when I reviewed the output.
@@ -963,7 +972,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 ## 6. Interview cheat sheet
 
-**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 130 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
+**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 133 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
 
 **Likely questions** (answer with a real example from section 4):
 
