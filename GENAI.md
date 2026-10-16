@@ -4,13 +4,26 @@ This document records how I used GenAI tools while building this project: what I
 what I got back, how I validated it, and what I changed. It also covers the
 task-management exercise requested in the technical interview.
 
+## At a glance
+
+- **What is in here:** section 1 is how I work with AI, section 2 the tools, section 3 my validation checklist, section 4 the prompt log (one entry per step up to Entry 08, one per story from Entry 09 on), section 5 the Task Management API exercise, and section 6 my interview cheat sheet.
+- **Tools and roles:** GitHub Copilot (Agent mode in IntelliJ) generated almost all application and test code from narrowly scoped prompts (the few manual fixes are in Entries 05 and 06). Claude (chat assistant) planned the steps, drafted and reviewed the prompts, and reviewed diffs and test output. Claude also wrote the Dockerfile, `.dockerignore`, the compose app service and the README, which I pasted, reviewed and verified.
+- **How I verified:** after every step I read the diff and checked mechanically instead of trusting the tool's summary: a `grep` for framework imports in `domain` and `application`, `git diff --stat` on tests, `pom.xml` and security, the full test suite, and `curl` against the running application. Stories 01 to 04 and authentication were built test-first, and the failing-test commit comes before the implementation commit in the history.
+- **Where the AI or my prompts went wrong, and what I did (details in the entries):**
+  - Entry 03: its tests rewrote fixture URLs to point at WireMock, which would have forced the adapter to follow URLs returned by an external service; its summary said everything was fine, and I found the gap with a `grep` on the generated test and a second reviewer, then fixed the design with a narrower prompt.
+  - Entry 05: a refactor turned the build red because the JSON test stubs had no `Content-Type`; the old code parsed every body as a string and had been hiding it. I confirmed the real header with `curl -I` and fixed the stubs by hand.
+  - Entry 06: the agent said all seven tests were red as expected, but four failed for the wrong reason, because my prompt asked for a skeleton without `@RequestParam`; I found it by reading the failure messages.
+  - Entry 12: two of my own red-phase prompts produced false reds: a JWT test with a fixed clock that looked expired, and a demo-user skeleton that broke every context test; I fixed both.
+  - Section 5: in the Task API exercise the security chain ended with `anyRequest().permitAll()`, and page size had no limit until I added a test and fixed it.
+- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 13).
+
 ## 1. Principles
 
 - AI is a pair programmer; **I own the architecture and the decisions**.
 - I define the rules first (Clean Architecture, TDD) and give them to the tool as
   project-level instructions (`.github/copilot-instructions.md`).
 - Prompts state the exact contract (class names, fields, rules, what NOT to do).
-- I never accept generated code without reading the diff and running the tests.
+- I do not commit generated code before checking the diff and running the tests.
 - Every relevant interaction is logged below (section 4).
 
 ## 2. Tools
@@ -18,7 +31,7 @@ task-management exercise requested in the technical interview.
 | Tool | What I used it for |
 |---|---|
 | GitHub Copilot (IntelliJ) | Code generation: models, adapters, mappers, test scaffolding |
-| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs and explaining errors. It also wrote the Dockerfile, .dockerignore, compose app service and README, which I pasted, reviewed and verified. All application and test code was generated with Copilot |
+| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs and explaining errors. It also wrote the Dockerfile, .dockerignore, compose app service and README, which I pasted, reviewed and verified. Almost all application and test code was generated with Copilot; the few manual fixes are in Entries 05 and 06 |
 
 ## 3. How I validate AI-generated code
 
@@ -672,11 +685,11 @@ changing the test.
   what the response contains) left the agent nothing to improvise. The one gap was an edge case I had not
   specified, so from now on I also list the behavior for empty or missing data in every prompt.
 
-## Entry 10: Story 03, local database sync (POST /api/pokemon/{id}/sync, GET /api/local-pokemon)
+### Entry 10: Story 03, local database sync (POST /api/pokemon/{id}/sync, GET /api/local-pokemon)
 
 - **Goal:** persist Pokémon locally with an idempotent sync, keeping proprietary fields (`localizedName`, `region`, `tags`) untouched when a record is synced again.
 - **Tools:** Claude (planning, prompt drafting, review of diffs and test output); GitHub Copilot Agent (code generation).
-- **Approach:** six TDD steps, each with a failing-test commit followed by an implementation commit: domain validation + use case, JPA adapter, web layer. Every prompt listed the design decisions as already fixed (validation in the domain record, JPA entity separate from the domain model, no Spring annotations in domain/application) so the agent could not improvise.
+- **Approach:** three TDD cycles, each with a failing-test commit followed by an implementation commit: domain validation + use case, JPA adapter, web layer. Every prompt listed the design decisions as already fixed (validation in the domain record, JPA entity separate from the domain model, no Spring annotations in domain/application) so the agent could not improvise.
 
 <details>
 <summary>Prompts (condensed)</summary>
@@ -692,7 +705,7 @@ changing the test.
 - **Problem found / fix:** in the web red step the 404 test failed because the skeleton threw before reaching the mocked use case, not because the handler was missing. It is acceptable only because the green prompt required the handler. A gap in my own prompt was also caught in review: nothing in this story throws `InvalidLocalPokemonException` to the controller, so its 400 handler is deferred to Story 04, test first.
 - **Lesson:** a validation rule that must hold for every instance belongs in the domain constructor, not in the use case, so the Story 04 update endpoint inherits it without copying code.
 
-## Entry 11: Story 04, update and delete local Pokémon (PUT / DELETE /api/local-pokemon/{id})
+### Entry 11: Story 04, update and delete local Pokémon (PUT / DELETE /api/local-pokemon/{id})
 
 - **Goal:** let the user edit only the proprietary fields (`localizedName`, `region`, `tags`) and delete a local record, reusing the domain validation from Story 03.
 - **Tools:** Claude (planning, prompt drafting, review of diffs and test output); GitHub Copilot Agent (code generation).
@@ -712,11 +725,11 @@ changing the test.
 - **Problem found / fix:** a verification `git diff` on the exception handler came back empty while the agent reported adding one. I did not accept either claim: `git status`, `git show` and `grep` showed the handler was uncommitted on disk and the red commit still held the skeleton, so the history was clean. It was my own check that had been unreliable, not the code.
 - **Lesson:** one empty diff is not evidence; cross-check with `git status` and `git show` before concluding. Also, a handler for an exception nothing throws yet should wait for the story that needs it, test first.
 
-## Entry 12: Authentication (register, login, JWT) and demo user
+### Entry 12: Authentication (register, login, JWT) and demo user
 
 - **Goal:** replace the placeholder HTTP Basic with real authentication: `POST /api/auth/register`, `POST /api/auth/login` returning a signed JWT, bearer validation on every protected route, and a seeded demo user so a reviewer can log in without registering.
 - **Tools:** Claude (planning, prompt drafting, review of diffs and test output); GitHub Copilot Agent (code generation).
-- **Approach:** nine TDD steps on one branch, each with a failing-test commit followed by an implementation commit: use cases (`AuthService`, plain Java, ports for the user repository, password hasher and token issuer), JPA user adapter, BCrypt hasher and HS256 token issuer, auth controller, switch of `SecurityConfig` to the OAuth2 resource server, and the demo user seeder. Login returns the same generic 401 for an unknown user and for a wrong password.
+- **Approach:** six TDD cycles on one branch, each with a failing-test commit followed by an implementation commit: use cases (`AuthService`, plain Java, ports for the user repository, password hasher and token issuer), JPA user adapter, BCrypt hasher and HS256 token issuer, auth controller, switch of `SecurityConfig` to the OAuth2 resource server, and the demo user seeder. Login returns the same generic 401 for an unknown user and for a wrong password.
 
 <details>
 <summary>Prompts (condensed)</summary>
@@ -730,17 +743,17 @@ changing the test.
 
 </details>
 
-- **What I checked (not the agent's summary):** diffs on `src/test`, `pom.xml`, resources and security were empty after each green step; no Spring or JPA annotations in domain/application; no logging of passwords, secrets or tokens; manual `curl` against Postgres: register 201, duplicate 409, short password 400, wrong password and unknown user return the identical 401 message, a valid token opens a protected route, a missing or tampered token returns 401, and the database stores a BCrypt hash (`$2a$10$`), never the password. The demo user can log in, and restarting the application with the user already present starts cleanly.
+- **What I checked (not the agent's summary):** after each green step I checked `src/test`, `pom.xml`, resources and security for unplanned changes (the planned ones are the JWT and seed properties and the test fix listed below); no Spring or JPA annotations in domain/application; no logging of passwords, secrets or tokens; manual `curl` against Postgres: register 201, duplicate 409, short password 400, wrong password and unknown user return the identical 401 message, a valid token opens a protected route, a missing or tampered token returns 401, and the database stores a BCrypt hash (`$2a$10$`), never the password. The demo user can log in, and restarting the application with the user already present starts cleanly.
 - **Problems found / fixes:** (1) a red-phase JWT test used a fixed 2026-01 clock with a default decoder that validates expiry against the real clock, so a correct token looked expired; the test was fixed in its own commit, relaxing only the timestamp validator. (2) My seeder red-phase prompt made the skeleton throw inside a `CommandLineRunner`, which broke every Spring context test; the agent stopped instead of touching forbidden files, and I changed the skeleton to an empty body. (3) The agent added `@Profile("!test")` on its own because the test profile inherits the main YAML; I reviewed it and kept it. (4) The agent also removed unused imports in a test I had asked it to change minimally.
-- **Lesson:** a red skeleton must never make existing tests fail for the wrong reason, so check the whole suite, not just the new tests. Also, an empty `git diff` can come from the pager: use `git --no-pager diff` before concluding anything.
+- **Lesson:** a red skeleton must never make existing tests fail for the wrong reason, so check the whole suite, not just the new tests. Also, an empty `git diff` is not a result: I cross-check it with `git status` before concluding anything (a pager can also hide short diffs, so I use `git --no-pager diff`).
 - **Known limitations (for the README):** the demo credentials and the default JWT secret are demonstration values; BCrypt limits passwords to 72 bytes while validation counts characters; registration reveals whether a username exists; there is no token refresh or revocation.
 
-## Entry 13: Docker packaging (Dockerfile and compose app service)
+### Entry 13: Docker packaging (Dockerfile and compose app service)
 
 - **Goal:** run the whole system with one command, `docker compose up --build`, from an empty checkout.
 - **Tools:** Claude (wrote the files); I pasted them. GitHub Copilot was not used for this step, and there was no TDD cycle because it is configuration, not behavior.
 - **Approach:** multi-stage `Dockerfile` (JDK 21 builds the jar, a JRE 21 image only runs it, as a non-root user), a `.dockerignore`, and an `app` service in `docker-compose.yaml` that waits for the Postgres healthcheck. The database host is passed with `SPRING_DATASOURCE_URL`, so `application.yaml` did not change.
-- **What I checked (not the assistant's summary):** I confirmed the Maven Wrapper folder is tracked in Git; reviewed the compose diff (only added lines); and verified from a clean state with `docker compose down -v` and `docker compose build --no-cache`: the application started, the seeded `demo` user could log in against the empty database, the public listing reached PokeAPI from inside the container, and `id` showed the process runs as user `pokehub`, not root.
+- **What I checked (not the assistant's summary):** I confirmed the Maven Wrapper folder is tracked in Git; reviewed the compose diff (only the new service, plus a trailing newline at the end of the file); and verified from a clean state with `docker compose down -v` and `docker compose build --no-cache`: the application started, the seeded `demo` user could log in against the empty database, the public listing reached PokeAPI from inside the container, and `id` showed the process runs as user `pokehub`, not root.
 - **Problem found / fix:** my first run was fully cached and did not prove a clean build, so I repeated it without cache and with a fresh volume. While writing the README I also found a Caffeine dependency that no code used (the cache was planned and never built), and removed it so the `pom.xml` matches the code. All 127 tests and a no-cache image build still passed afterwards.
 - **Lesson:** a cached build is not evidence; test the path a reviewer will take. An unused dependency is a claim the project does not keep.
 
@@ -875,8 +888,8 @@ public Task execute(UUID id, String ownerUsername) {
 ### 5.3 How I validated the suggestions
 
 - **In stages.** The tool stopped after the domain and application layers, as the prompt asked, and I reviewed them before asking for the infrastructure.
-- **Reading.** I read `Task`, `CreateTaskUseCase`, `GetTaskUseCase`, `LoginUseCase`, `ReplaceTaskUseCase`, `TaskController`, `TaskRequest`, `TaskPageRequest`, the security configuration and the exception handler.
-- **Mechanical checks (same method as section 3).** No Spring, Jakarta or Jackson imports in `domain` or `application` (`grep` returned nothing); no dependency added (`git diff` on `pom.xml` was empty); the JWT secret is read from configuration, with no default value and a 32-byte minimum check; no logging of passwords or tokens (`grep` returned nothing); no existing file was modified by the infrastructure step.
+- **Reading.** I read `Task`, `CreateTaskUseCase`, `GetTaskUseCase`, `LoginUseCase`, `ReplaceTaskUseCase`, `TaskController`, `TaskRequest`, `TaskPageRequest`, the filter chain of the security configuration and the main part of the exception handler.
+- **Mechanical checks (same method as section 3).** No Spring, Jakarta or Jackson imports in `domain` or `application` (`grep` returned nothing); no dependency added (`git diff` on `pom.xml` was empty); the JWT secret is read from configuration, with no default value and a 32-byte minimum check; no logging of passwords or tokens (`grep` returned nothing); the infrastructure step changed only one existing file, application.properties, by one line (the JWT secret property).
 - **Tests.** The suite passed after each stage: 21 tests after the domain and application layers, 30 after the infrastructure, 31 after my fix.
 - **Running it.** I started the application and attacked it with `curl` (table in 5.5).
 - **What I did not do.** I did not read the JPA entities and adapters, the response DTOs or the integration tests line by line, and I did not exercise cross-user access by hand: for that, I rely on the agent's report that its integration tests cover it.
@@ -909,9 +922,8 @@ After the fix the same request returns 400, and `size=100` still returns 200.
 | The security chain ends with `anyRequest().permitAll()`, so a new route outside `/api/tasks` and `/api/auth` would be public by default; the safe default is to require authentication | Read the configuration |
 | The handler catches every `IllegalArgumentException`, which could turn an unrelated library error into a 400 and hide a real bug | Read the handler (a risk, not observed) |
 | The same title and description rules exist twice, in `TaskRequest` (Bean Validation) and in the `Task` constructor, and they can drift apart | Read both |
-| `Task.replace` only calls the constructor, so it adds nothing | Read the code |
+| `Task.replace` only calls the constructor, so it adds no rule beyond it | Read the code |
 | Login skips the BCrypt check when the user does not exist, so response time could reveal valid usernames | Reasoning from the code, not measured |
-| One test compares against `LocalDate.now()` and could fail across midnight | Seen in the test source |
 
 The agent also reported that the Spring Boot 4 test annotation packages differ from the ones it used first, and it corrected its own imports.
 
@@ -921,7 +933,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 **Authentication.** Stateless JWT (HS256) with BCrypt for passwords. Every `/api/tasks` route requires a token and `/api/auth/**` is public. The task owner is the token subject (`jwt.getSubject()`) and never comes from the request body. Login throws the same exception for an unknown user and a wrong password.
 
-**Validation.** Field rules live in the domain constructor. The "due date not in the past" rule applies on creation only, as the prompt asked, so editing an old task does not fail because its date has passed.
+**Validation.** Field rules live in the domain constructor (and are repeated in the request DTO, see 5.4). The "due date not in the past" rule applies on creation only, as the prompt asked, so editing an old task does not fail because its date has passed.
 
 **Ownership.** Lookups are by id and owner, so another user's task is "not found" and its existence is not leaked.
 
@@ -949,9 +961,9 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 - *How do you use AI in your day-to-day work?* As a pair programmer, not an author. I fix the design first, give the tool a narrow contract (names, rules, what not to touch), let it write the failing tests and then the minimum code, and I review every diff and run the tests before moving on. I also use a chat assistant to plan the steps and to review output and error messages.
 
 - *Tell me about a time the AI gave you wrong or weak code.*
-  - **Situation:** while building the PokeAPI gateway, Copilot generated the WireMock tests for the list adapter.
+  - **Situation:** while building the PokeAPI gateway, my prompt did not say how the adapter builds the detail URL, and Copilot filled the gap itself when it generated the WireMock tests.
   - **Task:** I needed tests that described the behavior I wanted, not the tool's assumptions.
-  - **Action:** reviewing them, I saw they assumed the gateway would follow the `url` field returned by PokeAPI. I do not want to call URLs supplied by an external provider, so I wrote a second, narrower prompt that stated the decision explicitly: the gateway builds every path itself from the configured base URL.
+  - **Action:** the agent's summary said everything was fine, so I did not rely on it: a `grep` on the generated test showed it rewrote the fixture `url` fields to point at WireMock, which would have forced the adapter to follow URLs returned by an external service. I confirmed it with a chat assistant as a second reviewer, decided the design myself, and sent a second prompt limited to the test code: the adapter builds every path from the configured base URL.
   - **Result:** the tests and the adapter were corrected, and the gateway never follows returned URLs. From then on, every prompt listed the design decisions as already fixed, so the tool could not improvise them.
 
 - *How do you make sure AI-generated code respects your architecture?* Three things. The rules live in a project instruction file the tool reads. Each prompt states the fixed design decisions and an explicit "do not touch" list. And I verify mechanically instead of trusting the tool's summary: a `grep` for framework imports in `domain` and `application`, `git diff --stat` on tests, `pom.xml` and security after every green step, and the full test suite. The red/green commit history makes all of it auditable.
@@ -959,6 +971,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 - *What would you not delegate to AI?* Architecture and trade-offs, security-sensitive choices such as secrets and authentication defaults, deciding what "done" means, and understanding the code well enough to explain it. In the Task API exercise the tool left `anyRequest().permitAll()` at the end of the security chain, which is exactly the kind of default I would not hand over. The AI drafts; I own the decisions and the verification.
 
 - *What would you do differently with more time?* Add the optional caching layer for PokeAPI responses (I removed an unused caching dependency rather than leave a claim the code did not keep), replace `ddl-auto: update` with Flyway migrations, paginate the local collection, run the persistence tests against a real PostgreSQL with Testcontainers instead of H2, and handle concurrent first-time syncs of the same Pokémon.
+
 - *Which AI tools did you use in this project, and why two?* I used GitHub Copilot in IntelliJ for code
   generation, because it works directly on the repository and follows the rules in
   `.github/copilot-instructions.md`. I used a chat assistant as a second reviewer: planning the steps,
