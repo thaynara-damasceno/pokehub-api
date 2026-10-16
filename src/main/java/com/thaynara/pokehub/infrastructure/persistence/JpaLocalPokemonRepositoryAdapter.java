@@ -34,6 +34,11 @@ public class JpaLocalPokemonRepositoryAdapter implements LocalPokemonRepository 
         return toDomain(repository.save(entity));
     }
 
+    @Override
+    public void deleteById(int id) {
+        throw new UnsupportedOperationException();
+    }
+
     private LocalPokemon toDomain(LocalPokemonEntity entity) {
         return new LocalPokemon(
                 entity.getId(),
