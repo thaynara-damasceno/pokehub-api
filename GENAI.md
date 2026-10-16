@@ -18,7 +18,7 @@ task-management exercise requested in the technical interview.
 | Tool | What I used it for |
 |---|---|
 | GitHub Copilot (IntelliJ) | Code generation: models, adapters, mappers, test scaffolding |
-| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs and explaining errors. Snippets it suggested were reviewed before use; code generation in the repository was done with Copilot |
+| Claude (chat assistant) | Planning the steps, drafting and reviewing prompts, reviewing diffs and explaining errors. It also wrote the Dockerfile, .dockerignore, compose app service and README, which I pasted, reviewed and verified. All application and test code was generated with Copilot |
 
 ## 3. How I validate AI-generated code
 
@@ -734,6 +734,15 @@ changing the test.
 - **Problems found / fixes:** (1) a red-phase JWT test used a fixed 2026-01 clock with a default decoder that validates expiry against the real clock, so a correct token looked expired; the test was fixed in its own commit, relaxing only the timestamp validator. (2) My seeder red-phase prompt made the skeleton throw inside a `CommandLineRunner`, which broke every Spring context test; the agent stopped instead of touching forbidden files, and I changed the skeleton to an empty body. (3) The agent added `@Profile("!test")` on its own because the test profile inherits the main YAML; I reviewed it and kept it. (4) The agent also removed unused imports in a test I had asked it to change minimally.
 - **Lesson:** a red skeleton must never make existing tests fail for the wrong reason, so check the whole suite, not just the new tests. Also, an empty `git diff` can come from the pager: use `git --no-pager diff` before concluding anything.
 - **Known limitations (for the README):** the demo credentials and the default JWT secret are demonstration values; BCrypt limits passwords to 72 bytes while validation counts characters; registration reveals whether a username exists; there is no token refresh or revocation.
+
+## Entry 13: Docker packaging (Dockerfile and compose app service)
+
+- **Goal:** run the whole system with one command, `docker compose up --build`, from an empty checkout.
+- **Tools:** Claude (wrote the files); I pasted them. GitHub Copilot was not used for this step, and there was no TDD cycle because it is configuration, not behavior.
+- **Approach:** multi-stage `Dockerfile` (JDK 21 builds the jar, a JRE 21 image only runs it, as a non-root user), a `.dockerignore`, and an `app` service in `docker-compose.yaml` that waits for the Postgres healthcheck. The database host is passed with `SPRING_DATASOURCE_URL`, so `application.yaml` did not change.
+- **What I checked (not the assistant's summary):** I confirmed the Maven Wrapper folder is tracked in Git; reviewed the compose diff (only added lines); and verified from a clean state with `docker compose down -v` and `docker compose build --no-cache`: the application started, the seeded `demo` user could log in against the empty database, the public listing reached PokeAPI from inside the container, and `id` showed the process runs as user `pokehub`, not root.
+- **Problem found / fix:** my first run was fully cached and did not prove a clean build, so I repeated it without cache and with a fresh volume. While writing the README I also found a Caffeine dependency that no code used (the cache was planned and never built), and removed it so the `pom.xml` matches the code. All 127 tests and a no-cache image build still passed afterwards.
+- **Lesson:** a cached build is not evidence; test the path a reviewer will take. An unused dependency is a claim the project does not keep.
 
 ## 5. Exercise: Task Management API
 
