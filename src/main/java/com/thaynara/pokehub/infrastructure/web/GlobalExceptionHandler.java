@@ -2,6 +2,7 @@ package com.thaynara.pokehub.infrastructure.web;
 
 import com.thaynara.pokehub.domain.exception.InvalidPaginationException;
 import com.thaynara.pokehub.domain.exception.InvalidPokemonIdException;
+import com.thaynara.pokehub.domain.exception.LocalPokemonNotFoundException;
 import com.thaynara.pokehub.domain.exception.PokemonNotFoundException;
 import com.thaynara.pokehub.domain.exception.PokemonProviderUnavailableException;
 import org.slf4j.Logger;
@@ -29,6 +30,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(PokemonNotFoundException.class)
     public ProblemDetail handlePokemonNotFound(PokemonNotFoundException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    @ExceptionHandler(LocalPokemonNotFoundException.class)
+    public ProblemDetail handleLocalPokemonNotFound(LocalPokemonNotFoundException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 

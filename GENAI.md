@@ -672,6 +672,26 @@ changing the test.
   what the response contains) left the agent nothing to improvise. The one gap was an edge case I had not
   specified, so from now on I also list the behavior for empty or missing data in every prompt.
 
+## Entry 10: Story 03, local database sync (POST /api/pokemon/{id}/sync, GET /api/local-pokemon)
+
+- **Goal:** persist Pokémon locally with an idempotent sync, keeping proprietary fields (`localizedName`, `region`, `tags`) untouched when a record is synced again.
+- **Tools:** Claude (planning, prompt drafting, review of diffs and test output); GitHub Copilot Agent (code generation).
+- **Approach:** six TDD steps, each with a failing-test commit followed by an implementation commit: domain validation + use case, JPA adapter, web layer. Every prompt listed the design decisions as already fixed (validation in the domain record, JPA entity separate from the domain model, no Spring annotations in domain/application) so the agent could not improvise.
+
+<details>
+<summary>Prompts (condensed)</summary>
+
+- **Red, domain + service:** create `LocalPokemon` record, exceptions, three use case ports, repository port, service skeleton throwing `UnsupportedOperationException`, and tests for sync/upsert/validation. Tests must fail.
+- **Green, domain + service:** implement validation in the record's compact constructor and the sync logic. Do not modify tests.
+- **Red / Green, persistence:** JPA entity with `@ElementCollection` tags, Spring Data interface, adapter mapping through the domain constructor; `@DataJpaTest` on H2.
+- **Red / Green, web:** controller, response DTO, 404 handler, bean wiring in `UseCaseConfig`; do not touch `SecurityConfig`.
+
+</details>
+
+- **What I checked (not the agent's summary):** `git diff --stat` on `src/test` and `pom.xml` was empty after every green step; no `jakarta.persistence` in domain/application; test count grew 45 → 61 → 66 → 72; I read the domain record's constructor and the `UseCaseConfig` and `GlobalExceptionHandler` diffs; manual `curl` against Postgres: sync twice returns the same record and the list has exactly one item, plus 401/400/404 cases.
+- **Problem found / fix:** in the web red step the 404 test failed because the skeleton threw before reaching the mocked use case, not because the handler was missing. It is acceptable only because the green prompt required the handler. A gap in my own prompt was also caught in review: nothing in this story throws `InvalidLocalPokemonException` to the controller, so its 400 handler is deferred to Story 04, test first.
+- **Lesson:** a validation rule that must hold for every instance belongs in the domain constructor, not in the use case, so the Story 04 update endpoint inherits it without copying code.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
