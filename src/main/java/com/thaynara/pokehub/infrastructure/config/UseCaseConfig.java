@@ -3,7 +3,9 @@ package com.thaynara.pokehub.infrastructure.config;
 import com.thaynara.pokehub.application.port.in.ListPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.GetPokemonDetailUseCase;
 import com.thaynara.pokehub.application.port.out.PokemonGateway;
+import com.thaynara.pokehub.application.port.out.LocalPokemonRepository;
 import com.thaynara.pokehub.application.usecase.ListPokemonService;
+import com.thaynara.pokehub.application.usecase.LocalPokemonService;
 import com.thaynara.pokehub.application.usecase.PokemonDetailService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,5 +21,12 @@ public class UseCaseConfig {
     @Bean
     GetPokemonDetailUseCase getPokemonDetailUseCase(PokemonGateway pokemonGateway) {
         return new PokemonDetailService(pokemonGateway);
+    }
+
+    @Bean
+    LocalPokemonService localPokemonService(
+            GetPokemonDetailUseCase getPokemonDetailUseCase,
+            LocalPokemonRepository localPokemonRepository) {
+        return new LocalPokemonService(getPokemonDetailUseCase, localPokemonRepository);
     }
 }
