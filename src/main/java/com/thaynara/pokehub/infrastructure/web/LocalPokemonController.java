@@ -59,12 +59,13 @@ public class LocalPokemonController {
     public LocalPokemonResponse update(
             @PathVariable int id,
             @RequestBody UpdateLocalPokemonRequest request) {
-        throw new UnsupportedOperationException();
+        return LocalPokemonResponse.from(updateLocalPokemonUseCase.update(
+                id, request.localizedName(), request.region(), request.tags()));
     }
 
     @DeleteMapping("/api/local-pokemon/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable int id) {
-        throw new UnsupportedOperationException();
+        deleteLocalPokemonUseCase.delete(id);
     }
 }
