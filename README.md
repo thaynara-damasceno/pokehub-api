@@ -110,7 +110,7 @@ domain          (records and rules, plain Java)
 
 Every story was built test-first, and the red to green sequence is visible in the commit history
 (`test:` commit, then `feat:` commit, with `refactor:` where needed). The project was built with
-GenAI tools (GitHub Copilot for code generation; Claude for planning and review, and it also wrote the Dockerfile, the Postman collection, the OpenAPI security configuration with its test, and this README). The full account,
+GenAI tools (GitHub Copilot for code generation; Claude for planning and review, and it also wrote the Dockerfile, the Postman collection and this README). The full account,
 including the prompts, what I checked, and the problems found, is in [GENAI.md](GENAI.md).
 
 ## Known limitations
