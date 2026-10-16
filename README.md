@@ -70,6 +70,16 @@ A Postman collection with every case (success, validation errors, 401s, sync ide
 Application errors use RFC 9457 `ProblemDetail`; a missing or invalid token gets a 401 from Spring Security with an empty body. A PokeAPI failure returns 502 with a fixed generic message; the
 real cause is only written to the server log.
 
+### User stories and endpoints
+
+| User story | Endpoints |
+|---|---|
+| 01: Pokémon enumeration (paginated list) | `GET /api/pokemon?page=&size=` |
+| 02: detailed view | `GET /api/pokemon/{id}` |
+| 03: data synchronization (local database, proprietary fields) | `POST /api/pokemon/{id}/sync`, `GET /api/local-pokemon`, `GET /api/local-pokemon/{id}` |
+| 04: local data modification (update, with 404 and 400) | `PUT /api/local-pokemon/{id}`; `DELETE /api/local-pokemon/{id}` is an extra |
+| Authentication (supports 03 and 04) | `POST /api/auth/register`, `POST /api/auth/login` |
+
 ## Architecture
 
 ```text
