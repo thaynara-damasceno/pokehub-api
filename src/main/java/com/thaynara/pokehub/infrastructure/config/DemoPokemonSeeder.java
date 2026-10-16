@@ -17,5 +17,10 @@ public class DemoPokemonSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        for (LocalPokemon localPokemon : pokemon) {
+            if (repository.findById(localPokemon.id()).isEmpty()) {
+                repository.save(localPokemon);
+            }
+        }
     }
 }
