@@ -5,7 +5,6 @@ import com.thaynara.pokehub.application.port.in.ListLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.SyncPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.UpdateLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.DeleteLocalPokemonUseCase;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,7 +17,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@SecurityRequirement(name = "bearerAuth")
 public class LocalPokemonController {
 
     private final SyncPokemonUseCase syncPokemonUseCase;
