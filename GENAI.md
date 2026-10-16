@@ -15,7 +15,7 @@ task-management exercise requested in the technical interview.
   - Entry 06: the agent said all seven tests were red as expected, but four failed for the wrong reason, because my prompt asked for a skeleton without `@RequestParam`; I found it by reading the failure messages.
   - Entry 12: two of my own red-phase prompts produced false reds: a JWT test with a fixed clock that looked expired, and a demo-user skeleton that broke every context test; I fixed both.
   - Section 5: in the Task API exercise the security chain ended with `anyRequest().permitAll()`, and page size had no limit until I added a test and fixed it.
-- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 15).
+- **A note on format:** entries 01 to 09 are longer because I wrote them before I switched to a compact format (entries 10 to 16).
 
 ## 1. Principles
 
@@ -775,6 +775,15 @@ changing the test.
 - **Problem found / fix:** I had first been given a version of this code written by Claude. I did not use it, because the rule of this project is that Copilot generates the code, and nothing of it was committed. Copilot also left an unused import in one test; I left it, since it does not change behavior.
 - **Lesson:** a unit test proves the seeder logic, not that it runs at startup, so I also checked it against a fresh database in Docker.
 
+### Entry 16: Cache for PokeAPI responses (TDD red/green)
+
+- **Goal:** the exercise lists a cache for service responses as a nice to have; until now every request called PokeAPI.
+- **Tools:** GitHub Copilot generated the tests, the skeleton, the implementation and the configuration from two prompts (a red prompt and a green prompt, each with a "do not touch" list) that I wrote with Claude's help. Claude did not write code in this step.
+- **Approach:** a decorator, `CachingPokemonGateway`, implements the same `PokemonGateway` port and wraps the real PokeAPI gateway, so `domain` and `application` did not change. It uses two Caffeine caches (pages by page and size, details by id; the Caffeine dependency I removed in Entry 13 because nothing used it is back, now with code behind it) with a 5-minute expiry and a 500-entry limit, both configurable. The clock is injected so that expiry is tested without sleeping, and failures are never cached.
+- **What I checked (not the assistant's summary):** red: the assistant predicted two failing tests and the run had four; I read the test file and the two extra ones were valid reds, because they check that repeated calls and the 59-second read are served from the cache. Green: the diff touched exactly four files (`pom.xml` with only the Caffeine dependency, the configuration, the decorator and `application.yaml`) and no test, then the whole suite passed with 138 tests. With the application running in Docker, the same detail request took about 0.6 s the first time and about 4 ms the second, and the page listing about 0.16 s and about 4 ms.
+- **Problem found / fix:** the cache is in memory and per instance, and data can be up to 5 minutes old. I documented this in the README limitations instead of leaving it out.
+- **Lesson:** inject the clock so time-based behavior is testable without waiting, and put the cache on the port so the business layers do not know it exists.
+
 ## 5. Exercise: Task Management API
 
 This exercise is separate from the PokeHub project. I ran it in a local scratch repository that is not published, so the generated code would not mix with the reviewed project. This section holds the prompt, representative samples, and what I found when I reviewed the output.
@@ -972,7 +981,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 ## 6. Interview cheat sheet
 
-**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 133 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
+**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 138 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
 
 **Likely questions** (answer with a real example from section 4):
 
@@ -988,7 +997,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 - *What would you not delegate to AI?* Architecture and trade-offs, security-sensitive choices such as secrets and authentication defaults, deciding what "done" means, and understanding the code well enough to explain it. In the Task API exercise the tool left `anyRequest().permitAll()` at the end of the security chain, which is exactly the kind of default I would not hand over. The AI drafts; I own the decisions and the verification.
 
-- *What would you do differently with more time?* Add the optional caching layer for PokeAPI responses (I removed an unused caching dependency rather than leave a claim the code did not keep), replace `ddl-auto: update` with Flyway migrations, paginate the local collection, run the persistence tests against a real PostgreSQL with Testcontainers instead of H2, and handle concurrent first-time syncs of the same Pokémon.
+- *What would you do differently with more time?* Replace `ddl-auto: update` with Flyway migrations, move the in-memory cache to a shared one if the service ran in several instances, paginate the local collection, run the persistence tests against a real PostgreSQL with Testcontainers instead of H2, and handle concurrent first-time syncs of the same Pokémon.
 
 - *Which AI tools did you use in this project, and why two?* I used GitHub Copilot in IntelliJ for code
   generation, because it works directly on the repository and follows the rules in

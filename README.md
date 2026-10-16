@@ -97,6 +97,7 @@ domain          (records and rules, plain Java)
 - **PokeAPI client.** Detail pages are fetched concurrently with virtual threads and the order of the
   page is preserved. The client builds every path itself and never follows URLs returned by the
   provider.
+- **Cache.** `CachingPokemonGateway` decorates the `PokemonGateway` port with Caffeine caches (5 minutes, up to 500 entries each, configurable with `pokeapi.cache.ttl-seconds` and `pokeapi.cache.max-size`). Failures are never cached, and the application layer does not know the cache exists.
 - **Sync is an upsert.** The PokeAPI fields (name, image, description) are refreshed; `localizedName`,
   `region` and `tags` are never overwritten by a sync. Syncing the same Pokémon repeatedly never creates
   a duplicate (the local id is the PokeAPI id, which is also the primary key).
@@ -115,7 +116,7 @@ including the prompts, what I checked, and the problems found, is in [GENAI.md](
 ## Known limitations
 
 - Database schema is managed by `ddl-auto: update`; a real deployment should use migrations (Flyway or Liquibase).
-- No caching: each request calls PokeAPI. The detail endpoint makes three sequential calls.
+- The cache is in memory and per instance (5 minutes, up to 500 entries per cache), so data can be up to 5 minutes old and is not shared between instances. On a miss, the detail endpoint makes three sequential calls.
 - `GET /api/local-pokemon` is not paginated.
 - The evolution chain is flattened depth-first, so branching chains lose their tree shape.
 - Weight is returned as PokeAPI provides it (hectograms), without conversion.
