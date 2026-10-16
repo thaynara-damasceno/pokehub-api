@@ -3,9 +3,12 @@ package com.thaynara.pokehub.infrastructure.web;
 import com.thaynara.pokehub.domain.exception.InvalidPaginationException;
 import com.thaynara.pokehub.domain.exception.InvalidLocalPokemonException;
 import com.thaynara.pokehub.domain.exception.InvalidPokemonIdException;
+import com.thaynara.pokehub.domain.exception.InvalidCredentialsException;
+import com.thaynara.pokehub.domain.exception.InvalidRegistrationException;
 import com.thaynara.pokehub.domain.exception.LocalPokemonNotFoundException;
 import com.thaynara.pokehub.domain.exception.PokemonNotFoundException;
 import com.thaynara.pokehub.domain.exception.PokemonProviderUnavailableException;
+import com.thaynara.pokehub.domain.exception.UsernameAlreadyTakenException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -18,6 +21,21 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(UsernameAlreadyTakenException.class)
+    public ProblemDetail handleUsernameAlreadyTaken(UsernameAlreadyTakenException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRegistrationException.class)
+    public ProblemDetail handleInvalidRegistration(InvalidRegistrationException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail handleInvalidCredentials(InvalidCredentialsException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, exception.getMessage());
+    }
 
     @ExceptionHandler(InvalidPaginationException.class)
     public ProblemDetail handleInvalidPagination(InvalidPaginationException exception) {
