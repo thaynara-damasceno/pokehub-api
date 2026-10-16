@@ -28,16 +28,18 @@ public class LocalPokemonController {
 
     @PostMapping("/api/pokemon/{id}/sync")
     public LocalPokemonResponse sync(@PathVariable int id) {
-        throw new UnsupportedOperationException();
+        return LocalPokemonResponse.from(syncPokemonUseCase.sync(id));
     }
 
     @GetMapping("/api/local-pokemon")
     public List<LocalPokemonResponse> list() {
-        throw new UnsupportedOperationException();
+        return listLocalPokemonUseCase.list().stream()
+                .map(LocalPokemonResponse::from)
+                .toList();
     }
 
     @GetMapping("/api/local-pokemon/{id}")
     public LocalPokemonResponse getById(@PathVariable int id) {
-        throw new UnsupportedOperationException();
+        return LocalPokemonResponse.from(getLocalPokemonUseCase.getById(id));
     }
 }
