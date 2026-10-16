@@ -1,0 +1,25 @@
+{
+  "flavor_text_entries": [
+    {
+      "flavor_text": "Una semilla crece con el tiempo.",
+      "language": {
+        "name": "es"
+      }
+    },
+    {
+      "flavor_text": "A strange seed was planted on its back at birth.\nThe plant sprouts and grows with this Pokémon.",
+      "language": {
+        "name": "en"
+      }
+    },
+    {
+      "flavor_text": "This is another English entry\fthat should not be selected.",
+      "language": {
+        "name": "en"
+      }
+    }
+  ],
+  "evolution_chain": {
+    "url": "https://pokeapi.co/api/v2/evolution-chain/7/"
+  }
+}

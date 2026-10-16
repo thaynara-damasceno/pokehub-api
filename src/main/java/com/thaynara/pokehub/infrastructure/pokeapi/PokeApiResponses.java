@@ -21,15 +21,65 @@ final class PokeApiResponses {
     record PokemonDetail(
             int id,
             String name,
-            int weight,
+            Integer weight,
             PokemonSprites sprites,
             List<PokemonTypeEntry> types,
-            List<PokemonAbilityEntry> abilities
+            List<PokemonAbilityEntry> abilities,
+            List<PokemonStatEntry> stats,
+            PokemonSpeciesReference species
     ) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record PokemonSprites(@JsonProperty("front_default") String frontDefault) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonStatEntry(
+            @JsonProperty("base_stat") int baseStat,
+            PokemonStatReference stat
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonStatReference(String name) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonSpeciesReference(String name) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonSpecies(
+            @JsonProperty("flavor_text_entries") List<PokemonFlavorTextEntry> flavorTextEntries,
+            @JsonProperty("evolution_chain") PokemonEvolutionChainReference evolutionChain
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonFlavorTextEntry(
+            @JsonProperty("flavor_text") String flavorText,
+            PokemonLanguageReference language
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonLanguageReference(String name) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonEvolutionChainReference(String url) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonEvolutionChain(PokemonEvolutionNode chain) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PokemonEvolutionNode(
+            PokemonSpeciesReference species,
+            @JsonProperty("evolves_to") List<PokemonEvolutionNode> evolvesTo
+    ) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

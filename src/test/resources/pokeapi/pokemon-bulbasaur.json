@@ -2,6 +2,23 @@
   "id": 1,
   "name": "bulbasaur",
   "weight": 69,
+  "species": {
+    "name": "bulbasaur"
+  },
+  "stats": [
+    {
+      "base_stat": 45,
+      "stat": {
+        "name": "hp"
+      }
+    },
+    {
+      "base_stat": 49,
+      "stat": {
+        "name": "attack"
+      }
+    }
+  ],
   "types": [
     {
       "slot": 2,
