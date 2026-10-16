@@ -11,4 +11,6 @@ public interface LocalPokemonRepository {
     List<LocalPokemon> findAll();
 
     LocalPokemon save(LocalPokemon pokemon);
+
+    void deleteById(int id);
 }

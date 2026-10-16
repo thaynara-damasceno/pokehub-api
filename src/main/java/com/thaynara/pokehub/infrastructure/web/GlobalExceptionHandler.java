@@ -1,6 +1,7 @@
 package com.thaynara.pokehub.infrastructure.web;
 
 import com.thaynara.pokehub.domain.exception.InvalidPaginationException;
+import com.thaynara.pokehub.domain.exception.InvalidLocalPokemonException;
 import com.thaynara.pokehub.domain.exception.InvalidPokemonIdException;
 import com.thaynara.pokehub.domain.exception.LocalPokemonNotFoundException;
 import com.thaynara.pokehub.domain.exception.PokemonNotFoundException;
@@ -20,6 +21,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidPaginationException.class)
     public ProblemDetail handleInvalidPagination(InvalidPaginationException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidLocalPokemonException.class)
+    public ProblemDetail handleInvalidLocalPokemon(InvalidLocalPokemonException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
     }
 
