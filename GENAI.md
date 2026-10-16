@@ -526,6 +526,152 @@ Do the minimum needed. Run ./mvnw clean verify and report the result. If a test 
   that is green before the implementation is not proof of the new behavior; it is a guard, and I label it as
   such.
 
+### Entry 09 - Story 02: Pokémon detail (TDD red/green)
+
+- **Goal:** `GET /api/pokemon/{id}` returning the image, the stats, the description and the evolution chain,
+  with 404, 400 and 502 handling, built test-first across the use case, the PokeAPI adapter and the controller.
+- **Tool / mode:** GitHub Copilot Chat in IntelliJ, Agent mode. I approved each command one at a time.
+- **Prompts used:**
+
+<details>
+<summary>Step 4A (tests first, red) and Step 4B (implementation, green)</summary>
+
+```text
+Step 4A of "User Story 02: Pokémon detail" (TDD red phase). Follow .github/copilot-instructions.md. Do NOT add or
+change any dependency, and do NOT touch pom.xml, application.yaml or any existing test. The tests must fail first,
+so every new production method must throw `new UnsupportedOperationException()`; apart from that, skeletons must be
+complete enough for Spring to route and bind requests (lesson learned: a skeleton that cannot be bound makes tests fail
+for the wrong reason).
+
+Design decisions (already fixed, do not change them):
+- Endpoint GET /api/pokemon/{id}. Response fields: id, name, imageUrl, stats [{name, value}], description,
+  evolutionChain (list of names).
+- The PokeAPI is called in sequence: GET /pokemon/{id}, then GET /pokemon-species/{species.name} (the species name
+  comes from the "species.name" field of the pokemon response), then GET /evolution-chain/{chainId}. The chain id is the
+  numeric last path segment of "evolution_chain.url" in the species response. The gateway NEVER follows a URL returned
+  by the PokeAPI: it always builds the path itself on its configured base URL (https://pokeapi.co/api/v2).
+- imageUrl is "sprites.front_default" of the pokemon response. Stats come from "stats[].stat.name" and
+  "stats[].base_stat", in the order received. The description is the FIRST "flavor_text_entries" item whose
+  "language.name" is "en", with newlines and form feeds ("\n", "\f") replaced by a single space.
+- evolutionChain is the chain flattened depth-first (pre-order) into species names, in the order received
+  ("chain.species.name", then each "evolves_to" recursively).
+- Errors: id < 1 -> InvalidPokemonIdException (400, no PokeAPI call); PokeAPI 404 on /pokemon/{id} ->
+  PokemonNotFoundException (404); any other PokeAPI failure, including 404 on the species or the chain, or an
+  evolution chain url without a numeric id -> PokemonProviderUnavailableException (502).
+- The existing 502 body rule applies: the fixed text, never the internal message.
+
+Create:
+1. domain/model: PokemonDetail (record: int id, String name, String imageUrl, List<PokemonStat> stats,
+   String description, List<String> evolutionChain) and PokemonStat (record: String name, int value).
+2. domain/exception: PokemonNotFoundException (RuntimeException, constructor `(int id)`, message
+   "Pokémon with id <id> was not found.") and InvalidPokemonIdException (RuntimeException, constructor `(String message)`).
+3. application/port/in/GetPokemonDetailUseCase: `PokemonDetail get(int id);`
+4. Add `PokemonDetail findById(int id);` to the existing application/port/out/PokemonGateway, and a skeleton
+   implementation in PokeApiPokemonGateway that throws UnsupportedOperationException.
+5. application/usecase/PokemonDetailService implements GetPokemonDetailUseCase (constructor receives PokemonGateway;
+   no framework annotations; `get` throws UnsupportedOperationException).
+6. infrastructure/web: PokemonDetailResponse (record with the response fields) and PokemonStatResponse (record name,
+   value), fields only; PokemonDetailController (@RestController, @RequestMapping("/api/pokemon"), constructor receives
+   GetPokemonDetailUseCase, `@GetMapping("/{id}") PokemonDetailResponse detail(@PathVariable int id)` throwing
+   UnsupportedOperationException). Do NOT modify PokemonController or GlobalExceptionHandler.
+7. In infrastructure/config/UseCaseConfig add a GetPokemonDetailUseCase bean (new PokemonDetailService(gateway)) so the
+   full application context keeps loading and the existing tests stay green.
+
+Tests (JUnit 5 + AssertJ; follow the style of the existing tests):
+A. application/usecase/PokemonDetailServiceTest (Mockito): delegates to gateway.findById and returns its result for
+   a valid id (also id 1, the boundary); id 0 and -1 throw InvalidPokemonIdException and never call the gateway
+   (parameterized); a PokemonNotFoundException thrown by the gateway is propagated.
+B. infrastructure/pokeapi/PokeApiPokemonDetailGatewayTest (WireMock via WireMockExtension, dynamic port, no Spring
+   context, RestClient base URL = wireMock.baseUrl() + "/api/v2"; same setup as PokeApiPokemonGatewayTest). EVERY
+   stub that returns JSON must send the header "Content-Type: application/json", like the real PokeAPI. Fixtures in
+   src/test/resources/pokeapi/: add a "stats" array and a "species": {"name": "bulbasaur"} field to the existing
+   pokemon-bulbasaur.json (additive change only, do not break the existing tests), and create
+   species-bulbasaur.json (flavor_text_entries with a Spanish entry first, then English entries whose text contains
+   "\n" and "\f"; "evolution_chain": {"url": ".../evolution-chain/7/"}, an id different from the pokemon id on purpose,
+   to prove the url is not followed) and evolution-chain-7.json (bulbasaur -> ivysaur -> venusaur). Test cases:
+   - maps the three responses to a PokemonDetail (image, stats in order, normalized English description,
+     evolutionChain [bulbasaur, ivysaur, venusaur]) and calls /pokemon/1, /pokemon-species/bulbasaur and
+     /evolution-chain/7 (verify the requests; no trailing slashes);
+   - flattens a branching chain depth-first (inline JSON: eevee evolves_to vaporeon and jolteon -> [eevee, vaporeon,
+     jolteon]);
+   - throws PokemonNotFoundException when /pokemon/{id} answers 404;
+   - throws PokemonProviderUnavailableException when /pokemon/{id} answers 500;
+   - throws PokemonProviderUnavailableException when the species call answers 404 (and when it answers 500);
+   - throws PokemonProviderUnavailableException when the evolution chain call answers 500;
+   - throws PokemonProviderUnavailableException when the evolution chain url has no numeric id.
+C. infrastructure/web/PokemonDetailControllerTest (@WebMvcTest(PokemonDetailController.class),
+   @AutoConfigureMockMvc(addFilters = false), @MockitoBean GetPokemonDetailUseCase; Spring Boot 4 packages as in
+   PokemonControllerTest):
+   - 200 for GET /api/pokemon/1 with the full JSON body (id, name, imageUrl, stats[0].name/value, description,
+     evolutionChain);
+   - 404 with content type application/problem+json, status 404 and detail "Pokémon with id 999 was not found."
+     when the use case throws PokemonNotFoundException(999);
+   - 400 with content type application/problem+json and detail equal to the exception message when the use case
+     throws InvalidPokemonIdException("Pokémon id must be greater than or equal to 1.");
+   - 502 with application/problem+json and the fixed detail "The Pokémon data provider is currently unavailable.
+     Please try again later." when the use case throws PokemonProviderUnavailableException("internal failure"); the
+     internal message must not appear in the body.
+Use clear test names that describe the behavior.
+```
+
+```text
+Step 4B of "User Story 02" (TDD green phase). Make ALL the new Story 02 tests pass (PokemonDetailServiceTest,
+PokeApiPokemonDetailGatewayTest, PokemonDetailControllerTest) and keep the 29 existing tests green. Follow
+.github/copilot-instructions.md. Do not add dependencies. Do NOT modify any test, any test fixture, pom.xml or
+application.yaml. Only touch: PokemonDetailService, PokeApiPokemonGateway (findById), PokeApiResponses (additive),
+PokemonDetailResponse, PokemonStatResponse, PokemonDetailController and GlobalExceptionHandler (add handlers only).
+
+Design decisions (already fixed, do not change them):
+- PokemonDetailService.get(id): if id < 1 throw InvalidPokemonIdException("Pokémon id must be greater than or equal
+  to 1.") WITHOUT calling the gateway; otherwise delegate to gateway.findById(id). No framework annotations.
+- PokeApiPokemonGateway.findById(id), three sequential calls using relative paths on the configured base URL:
+  GET /pokemon/{id}, then GET /pokemon-species/{species.name}, then GET /evolution-chain/{chainId}. The gateway
+  never follows a URL returned by the PokeAPI. Use URI variables, never string concatenation.
+- The chain id is the last non-empty path segment of "evolution_chain.url"; it must be numeric, otherwise throw
+  PokemonProviderUnavailableException. Use it only to build /evolution-chain/{chainId}.
+- Errors: a 404 (HttpClientErrorException.NotFound) on /pokemon/{id} -> PokemonNotFoundException(id). Any other
+  RestClientException on any of the three calls, including a 404 on the species or the chain ->
+  PokemonProviderUnavailableException with the original cause.
+- Mapping: imageUrl = sprites.front_default; stats = stats[].stat.name and stats[].base_stat in the order received;
+  description = the FIRST flavor_text_entries item with language.name "en", with every run of whitespace
+  (including \n and \f) replaced by a single space and trimmed; if there is no English entry (or the list is empty)
+  the description is an empty string, never an exception; evolutionChain = chain.species.name followed by each
+  evolves_to node, flattened depth-first (pre-order) in the order received; treat a null evolves_to as empty.
+- Extend the existing package-private records in PokeApiResponses additively (stats, species, flavor text, evolution
+  chain) with @JsonProperty for snake_case and @JsonIgnoreProperties(ignoreUnknown = true); they must not leak out of
+  infrastructure.pokeapi. The 8 existing gateway tests must stay green.
+- Web: PokemonDetailResponse.from(PokemonDetail) and PokemonStatResponse.from(PokemonStat); the controller only
+  delegates to GetPokemonDetailUseCase. In GlobalExceptionHandler add: PokemonNotFoundException -> 404
+  ProblemDetail with detail = the exception message; InvalidPokemonIdException -> 400 ProblemDetail with detail = the
+  exception message. Do not change the existing handlers.
+- Do not use Lombok.
+Do the minimum needed. Run ./mvnw clean verify and report the result. If a test fails, tell me why instead of
+changing the test.
+```
+
+</details>
+
+- **What I checked:**
+  - Red run: 45 tests, the 29 existing ones green and the 16 new ones red (5 use case, 7 adapter, 4 controller),
+    for the right reasons: `UnsupportedOperationException` from the skeletons, and assertion failures where a
+    specific exception was expected. Before committing the red step I read the WireMock stubs: every JSON stub goes
+    through one helper that sends `Content-Type: application/json` (the lesson from Entry 05), and the verified
+    paths use chain id 7, different from the Pokémon id, to prove the adapter does not follow the URL it receives.
+  - Green run: only seven production files changed; no test, fixture, `pom.xml` or `application.yaml` was
+    touched; `grep` found no Spring, Jakarta or Jackson imports in `domain` and `application`; `getMessage`
+    appears only in the 400 and 404 handlers, and the 502 handler keeps returning the fixed text;
+    `./mvnw clean verify`: BUILD SUCCESS with 45 tests.
+- **Real API check:** I ran the application and called the endpoint with `curl`: ids 1 and 133 returned the stats,
+  a single-line description and the evolution chain, id 999999 returned 404 and id 0 returned 400.
+- **Problem found / fix:** a gap in my own prompt, caught before the green step while reviewing the test file
+  with a chat assistant: one test uses a species with an empty `flavor_text_entries` list to check an invalid
+  chain URL, and my first 4B prompt did not say what to do without an English description. An
+  `orElseThrow()` would have failed that test with the wrong exception, so I added the rule (empty string, never
+  an exception) to the prompt.
+- **Lesson:** fixing the design decisions in the prompt (how paths are built, which errors map to which status,
+  what the response contains) left the agent nothing to improvise. The one gap was an edge case I had not
+  specified, so from now on I also list the behavior for empty or missing data in every prompt.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
