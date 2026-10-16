@@ -16,5 +16,18 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    build: .
+    container_name: pokehub-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pokemon
+      SPRING_DATASOURCE_USERNAME: pokemon
+      SPRING_DATASOURCE_PASSWORD: pokemon
+    ports:
+      - "8080:8080"
+
 volumes:
   pgdata:
