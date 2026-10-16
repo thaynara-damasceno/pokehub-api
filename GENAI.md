@@ -942,15 +942,23 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 ## 6. Interview cheat sheet
 
-**30-second summary:** TODO (3 sentences: what I built, how I structured it, how AI helped).
+**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 127 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
 
 **Likely questions** (answer with a real example from section 4):
 
-- *How do you use AI in your day-to-day work?* TODO
-- *Tell me about a time the AI gave you wrong or weak code.* TODO (Situation, Task, Action, Result)
-- *How do you make sure AI-generated code respects your architecture?* TODO
-- *What would you not delegate to AI?* TODO
-- *What would you do differently with more time?* TODO
+- *How do you use AI in your day-to-day work?* As a pair programmer, not an author. I fix the design first, give the tool a narrow contract (names, rules, what not to touch), let it write the failing tests and then the minimum code, and I review every diff and run the tests before moving on. I also use a chat assistant to plan the steps and to review output and error messages.
+
+- *Tell me about a time the AI gave you wrong or weak code.*
+  - **Situation:** while building the PokeAPI gateway, Copilot generated the WireMock tests for the list adapter.
+  - **Task:** I needed tests that described the behavior I wanted, not the tool's assumptions.
+  - **Action:** reviewing them, I saw they assumed the gateway would follow the `url` field returned by PokeAPI. I do not want to call URLs supplied by an external provider, so I wrote a second, narrower prompt that stated the decision explicitly: the gateway builds every path itself from the configured base URL.
+  - **Result:** the tests and the adapter were corrected, and the gateway never follows returned URLs. From then on, every prompt listed the design decisions as already fixed, so the tool could not improvise them.
+
+- *How do you make sure AI-generated code respects your architecture?* Three things. The rules live in a project instruction file the tool reads. Each prompt states the fixed design decisions and an explicit "do not touch" list. And I verify mechanically instead of trusting the tool's summary: a `grep` for framework imports in `domain` and `application`, `git diff --stat` on tests, `pom.xml` and security after every green step, and the full test suite. The red/green commit history makes all of it auditable.
+
+- *What would you not delegate to AI?* Architecture and trade-offs, security-sensitive choices such as secrets and authentication defaults, deciding what "done" means, and understanding the code well enough to explain it. In the Task API exercise the tool left `anyRequest().permitAll()` at the end of the security chain, which is exactly the kind of default I would not hand over. The AI drafts; I own the decisions and the verification.
+
+- *What would you do differently with more time?* Add the optional caching layer for PokeAPI responses (I removed an unused caching dependency rather than leave a claim the code did not keep), replace `ddl-auto: update` with Flyway migrations, paginate the local collection, run the persistence tests against a real PostgreSQL with Testcontainers instead of H2, and handle concurrent first-time syncs of the same Pokémon.
 - *Which AI tools did you use in this project, and why two?* I used GitHub Copilot in IntelliJ for code
   generation, because it works directly on the repository and follows the rules in
   `.github/copilot-instructions.md`. I used a chat assistant as a second reviewer: planning the steps,
