@@ -692,6 +692,26 @@ changing the test.
 - **Problem found / fix:** in the web red step the 404 test failed because the skeleton threw before reaching the mocked use case, not because the handler was missing. It is acceptable only because the green prompt required the handler. A gap in my own prompt was also caught in review: nothing in this story throws `InvalidLocalPokemonException` to the controller, so its 400 handler is deferred to Story 04, test first.
 - **Lesson:** a validation rule that must hold for every instance belongs in the domain constructor, not in the use case, so the Story 04 update endpoint inherits it without copying code.
 
+## Entry 11: Story 04, update and delete local Pokémon (PUT / DELETE /api/local-pokemon/{id})
+
+- **Goal:** let the user edit only the proprietary fields (`localizedName`, `region`, `tags`) and delete a local record, reusing the domain validation from Story 03.
+- **Tools:** Claude (planning, prompt drafting, review of diffs and test output); GitHub Copilot Agent (code generation).
+- **Approach:** two TDD cycles, each with a failing-test commit followed by an implementation commit: (1) use cases, service and repository `deleteById`; (2) controller, request DTO and the 400 handler. `PUT` is a full replacement of the three editable fields (idempotent); the service rebuilds a new `LocalPokemon`, so the domain constructor validates and no rule is duplicated. `name`, `imageUrl` and `description` can only change through `sync`.
+
+<details>
+<summary>Prompts (condensed)</summary>
+
+- **Red, use cases + persistence:** two new inbound ports, `deleteById` on the repository port, skeleton methods throwing `UnsupportedOperationException`, tests for update/delete in the service (Mockito) and the adapter (`@DataJpaTest`).
+- **Green, use cases + persistence:** implement update (find or 404, rebuild the record, save) and delete (find or 404, delete). Do not modify tests or touch config/web.
+- **Red, web:** `PUT`/`DELETE` skeletons with real mappings, `UpdateLocalPokemonRequest` record, no handler yet so the 400 test must fail; only two `@MockitoBean` lines may be added to the existing controller test.
+- **Green, web:** delegate to the use cases, add only the `InvalidLocalPokemonException` → 400 handler.
+
+</details>
+
+- **What I checked (not the agent's summary):** `git diff --stat` on `src/test`, `pom.xml`, security and config was empty after each green step; no Spring or JPA annotations in domain/application; the only change to the existing controller test was added lines; test count grew 72 → 81 → 88; manual `curl` against Postgres: `PUT`, then `sync` again, and the proprietary fields were preserved; invalid `PUT` → 400, unknown id → 404, `DELETE` → 204 then 404, unauthenticated → 401.
+- **Problem found / fix:** a verification `git diff` on the exception handler came back empty while the agent reported adding one. I did not accept either claim: `git status`, `git show` and `grep` showed the handler was uncommitted on disk and the red commit still held the skeleton, so the history was clean. It was my own check that had been unreliable, not the code.
+- **Lesson:** one empty diff is not evidence; cross-check with `git status` and `git show` before concluding. Also, a handler for an exception nothing throws yet should wait for the story that needs it, test first.
+
 ## 5. Exercise: Task Management API
 
 > To be completed near the end of the project.
