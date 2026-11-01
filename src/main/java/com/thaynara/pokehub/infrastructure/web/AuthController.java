@@ -2,6 +2,7 @@ package com.thaynara.pokehub.infrastructure.web;
 
 import com.thaynara.pokehub.application.port.in.AuthenticateUserUseCase;
 import com.thaynara.pokehub.application.port.in.RegisterUserUseCase;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,7 +26,7 @@ public class AuthController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public void register(@RequestBody RegisterRequest request) {
+    public void register(@Valid @RequestBody RegisterRequest request) {
         registerUserUseCase.register(request.username(), request.password());
     }
 

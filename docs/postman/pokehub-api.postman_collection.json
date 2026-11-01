@@ -160,6 +160,91 @@
           ]
         },
         {
+          "name": "Register blank username (400, field errors)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"   \",\n  \"password\": \"password-123\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"content type is problem+json\", function () { pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"); });",
+                  "pm.test(\"errors name the field: username\", function () { var fields = pm.response.json().errors.map(function (e) { return e.field; }); pm.expect(fields).to.include(\"username\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register malformed JSON (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"content type is problem+json\", function () { pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Login wrong password (401)",
           "request": {
             "method": "POST",
@@ -238,6 +323,49 @@
                 "exec": [
                   "pm.test(\"status 401\", function () { pm.response.to.have.status(401); });",
                   "pm.test(\"detail: Invalid username or password.\", function () { pm.expect(pm.response.json().detail).to.eql(\"Invalid username or password.\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login without credentials (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"detail: Invalid username or password.\", function () { pm.expect(pm.response.json().detail).to.eql(\"Invalid username or password.\"); });",
+                  "pm.test(\"content type is problem+json\", function () { pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"); });"
                 ]
               }
             }
@@ -1056,6 +1184,46 @@
           ]
         },
         {
+          "name": "Update with a blank tag (400, field errors)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/local-pokemon/25",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "local-pokemon",
+                "25"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"localizedName\": \"Pikachu\",\n  \"region\": \"Kanto\",\n  \"tags\": [\n    \" \"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"content type is problem+json\", function () { pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"); });",
+                  "pm.test(\"errors name the field: tags[0]\", function () { var fields = pm.response.json().errors.map(function (e) { return e.field; }); pm.expect(fields).to.include(\"tags[0]\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Update unknown id (404)",
           "request": {
             "method": "PUT",
@@ -1210,7 +1378,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status 401\", function () { pm.response.to.have.status(401); });"
+                  "pm.test(\"status 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"content type is problem+json\", function () { pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"); });",
+                  "pm.test(\"WWW-Authenticate asks for a bearer token\", function () { pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.include(\"Bearer\"); });"
                 ]
               }
             }
@@ -1246,7 +1416,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status 401\", function () { pm.response.to.have.status(401); });"
+                  "pm.test(\"status 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"content type is problem+json\", function () { pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"); });",
+                  "pm.test(\"WWW-Authenticate asks for a bearer token\", function () { pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.include(\"Bearer\"); });"
                 ]
               }
             }

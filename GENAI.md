@@ -15,8 +15,9 @@ task-management exercise requested in the technical interview.
   - Entry 06: the agent said all seven tests were red as expected, but four failed for the wrong reason, because my prompt asked for a skeleton without `@RequestParam`; I found it by reading the failure messages.
   - Entry 12: two of my own red-phase prompts produced false reds: a JWT test with a fixed clock that looked expired, and a demo-user skeleton that broke every context test; I fixed both.
   - Entry 17: login with a missing username or password ended in an unhandled exception (HTTP 500); no test or Postman request had tried it. A final review of the published code suspected it, a probe test confirmed it, and I fixed it test-first.
+  - Entries 18 to 20: the feedback on my submission named three things: input validation done by hand in the domain instead of on the request objects, default framework error responses for malformed requests, and unused dependencies. I had seen two of them in my own final review (Entry 17) and, on the reviewer's advice, left them as they were; that was the wrong call. I fixed all three test-first, and I also found that the Spring Security 401 had the same problem, which the feedback did not mention.
   - Section 5: in the Task API exercise the security chain ended with `anyRequest().permitAll()`, and page size had no limit until I added a test and fixed it.
-- **A note on format:** all 17 entries follow the same compact format (template at the start of section 4), and the prompts are collapsed under each entry. Entries 10 to 12 hold a condensed description of the prompts instead of the full text, and Entry 13 has none because Copilot was not used.
+- **A note on format:** all 20 entries follow the same compact format (template at the start of section 4), and the prompts are collapsed under each entry. Entries 10 to 12 hold a condensed description of the prompts instead of the full text, and Entry 13 has none because Copilot was not used.
 
 ## 1. Principles
 
@@ -823,6 +824,161 @@ Then run AuthServiceTest and the WHOLE suite (./mvnw test) and report the number
 
 </details>
 
+### Entry 18: Request-object validation (feedback fix, TDD red/green)
+
+- **Goal:** the feedback on my submission said that input validation was handled manually in the domain instead of on the request objects. Put Bean Validation on `RegisterRequest` and `UpdateLocalPokemonRequest`, so a bad payload is rejected at the edge with a 400 that names each field, and keep the domain checks as they are.
+- **Tools:** GitHub Copilot generated the tests and the code from three prompts (a red prompt, a second pass on the red tests, and a green prompt). Claude planned the steps, wrote the prompts and reviewed every diff and test run. Claude did not write code that is in the project in this step.
+- **Approach:** the design was fixed in the prompts: `@NotBlank` on the username and password of the register request; `@Size(max = 60)` on `localizedName` and `region`, `@Size(max = 10)` on `tags`, and `@NotBlank @Size(max = 30)` on each tag of the update request; `@Valid` only on `register` and `update`; a handler for `MethodArgumentNotValidException` that answers 400 with the title "Validation failed" and an `errors` list of `{field, message}` sorted by field. `LoginRequest` gets no annotations on purpose: a login without credentials keeps the generic 401 from Entry 17. The domain and use-case checks stay, so the rules are enforced twice.
+- **What I checked (not the assistant's summary):** the first red run reported 14 tests with 2 failures, fewer than the ten invalid payloads I had asked for. Reading the diff showed that each test class had one `@Test` calling a helper several times (4 payloads in one, 6 in the other), so the first failing payload hid the rest. I sent a second prompt to turn them into parameterized tests with one invocation per payload: 22 tests, 10 failures, 0 errors, each one with 201 or 200 instead of the expected 400. Green: the diff touched the two records, the two controller parameters and the handler; `LoginRequest` and `pom.xml` were untouched; the full suite passed with 151 tests (141 plus the 10 new cases).
+- **Problem found / fix:** the first red was too weak. The summary said the tests failed as expected, which was true, but only 2 of the 10 cases had been shown to fail. The limits (60, 10 and 30) are now written in the annotations and in the domain; I kept the domain as the source of truth and listed the duplication in the README limitations.
+- **Lesson:** count the reds. When I expect ten failing cases and see two, the tests are hiding cases, and a loop inside a single test is exactly how that happens.
+
+<details>
+<summary>Red prompt, tests first (exact text)</summary>
+
+```text
+Context: Spring Boot 4 / Java 21, Clean Architecture. Request validation currently lives only in the domain and use cases. The request records have no Bean Validation. We are fixing this test-first. This step is RED: write ONLY tests, no production code changes.
+
+Add tests in the existing controller test classes (AuthControllerTest and LocalPokemonControllerUpdateDeleteTest), following the style already used there. They cover validation on the request objects RegisterRequest and UpdateLocalPokemonRequest:
+
+1. POST /api/auth/register: missing or blank username, and missing or blank password, must answer 400 with content type application/problem+json. The body must contain an "errors" array of objects shaped {"field": "...", "message": "..."} naming the offending field. The register use case must never be invoked (verifyNoInteractions).
+
+2. PUT /api/local-pokemon/{id}: localizedName longer than 60, region longer than 60, more than 10 tags, a blank tag, a tag longer than 30, and a null tag must each answer 400 with application/problem+json and an "errors" array naming the field (for example "tags[0]"). The update use case must never be invoked.
+
+3. Valid payloads must still reach the use case exactly as they do today.
+
+Do NOT add any constraint or test for LoginRequest: login must keep answering 401 for missing credentials.
+
+Do not touch production code. Run the new tests and show me that they fail for the right reason (validation is missing), not because of compile errors.
+```
+
+</details>
+
+<details>
+<summary>Red prompt, second pass: one invocation per case (exact text)</summary>
+
+```text
+Still the RED step: tests only, no production code changes.
+
+The new validation tests in AuthControllerTest and LocalPokemonControllerUpdateDeleteTest each put several invalid payloads inside a single @Test (via a helper called repeatedly). The first failing case hides the others. Restructure them as @ParameterizedTest with @MethodSource, one invocation per case, so each case passes or fails on its own and shows up separately in the report.
+
+Requirements:
+- Use a readable display name per case, for example "registration: missing username", "registration: blank password", "update: tag longer than 30", "update: null tag".
+- Each case supplies the JSON payload and the expected "field" value in the errors array (for example "username", "password", "localizedName", "region", "tags", "tags[0]").
+- Cover every case from the previous prompt: register with missing/blank username and missing/blank password; update with localizedName > 60, region > 60, more than 10 tags, a blank tag, a tag longer than 30, and a null tag.
+- Keep the assertions: status 400, content type application/problem+json, errors array containing an object with the expected field and a non-empty message, and verifyNoInteractions on the use case.
+- Keep the existing valid-payload tests unchanged.
+
+Run both test classes and show me the count of tests, failures and errors. Every invalid-payload invocation should fail because validation is missing, and none should fail because of a compile error.
+```
+
+</details>
+
+<details>
+<summary>Green prompt, implementation (exact text)</summary>
+
+```text
+GREEN step for the request-validation tests we just wrote. Make them pass with the smallest production change, and do not modify the tests.
+
+1. RegisterRequest: add Bean Validation (jakarta.validation) @NotBlank to username and password. Do not invent new length limits; only mirror rules that AuthService.register already enforces.
+
+2. UpdateLocalPokemonRequest: @Size(max = 60) on localizedName and region, @Size(max = 10) on tags, and List<@NotBlank @Size(max = 30) String> for the tag elements. A null field or a null tags list must stay valid, as it is today. If the domain (LocalPokemon) exposes these limits as public constants, reference them so the numbers live in one place; otherwise do not change the domain just for this.
+
+3. Add @Valid to the @RequestBody parameter of AuthController.register and LocalPokemonController.update. Do NOT add @Valid, or any constraint, to login: LoginRequest must keep answering 401 for missing credentials.
+
+4. In GlobalExceptionHandler, add an @ExceptionHandler for MethodArgumentNotValidException that returns a ProblemDetail with status 400, title "Validation failed" and a property "errors": a list of objects {"field": "...", "message": "..."}, one per violated constraint, sorted by field so the order is deterministic.
+
+5. Keep the existing validation in the domain and use cases untouched (defense in depth). Do not touch pom.xml in this step.
+
+Run the full suite with ./mvnw test and show me the totals. All tests must pass, including the 10 new parameterized cases and the existing login tests.
+```
+
+</details>
+
+### Entry 19: Problem responses for framework and security errors (feedback fix, TDD red/green)
+
+- **Goal:** the feedback said that malformed requests returned default framework errors instead of clear, controlled responses. The same was true for unsupported methods and media types (405 and 415), unknown paths, unexpected exceptions and the 401 from Spring Security: each one came back with an empty body or the framework's own format. Make every error a `ProblemDetail`.
+- **Tools:** GitHub Copilot generated the tests and the code from two prompts. Claude read `SecurityConfig` and the exception handler, noticed that the Security 401 had the same problem (the feedback did not mention it), wrote the prompts and reviewed. Claude also wrote the new Postman requests described below.
+- **Approach:** `GlobalExceptionHandler` extends `ResponseEntityExceptionHandler`, so the standard MVC exceptions become problem responses and headers such as `Allow` are kept. The validation handler from Entry 18 becomes an override of `handleMethodArgumentNotValid`, because a second `@ExceptionHandler` for the same exception would be ambiguous. A catch-all handler logs the exception and returns a 500 with a fixed message. A small `AuthenticationEntryPoint` answers 401 with a problem body and delegates to Spring's bearer entry point for the `WWW-Authenticate` header. There is no access-denied handler: no role rules exist, so a 403 is unreachable.
+- **What I checked (not the assistant's summary):** red: nine parameterized cases (malformed JSON, empty body, wrong JSON type, 405, 415, unknown path, unexpected exception, no token, garbage token): 44 tests, 9 failures, 0 errors. Eight failed because the content type was unset and the 500 case because it was `application/json`; the `Allow` and `WWW-Authenticate` headers were already correct. The unexpected-exception case moved to an embedded-server test, because MockMvc rethrows the exception (an error, not a failure), and Copilot used `java.net.http.HttpClient` because `TestRestTemplate` is not on the classpath. Green: the first full run failed because the entry point asked for an `ObjectMapper` bean that does not exist in this Boot 4 context, and Copilot replaced it with a constant body. After that, 160 tests passed. The entry point is a new file, so `git diff` did not list it; I read it with `cat`. I then ran the collection against the rebuilt Docker image and added four Postman requests (blank username, malformed JSON, login without credentials, blank tag) plus `problem+json` and `WWW-Authenticate` checks on the two 401 requests: 41 requests, 68 assertions, 0 failed.
+- **Problem found / fix:** the Security 401 was not in the feedback; I found it by reading `SecurityConfig`. The first Newman run after the rebuild failed on all 37 requests with `ECONNRESET` because I ran it before the application had finished starting; waiting for the API docs endpoint to answer fixed it, and nothing in the code was wrong.
+- **Lesson:** when a reviewer names a class of problem ("default framework errors"), I look for every place that class can appear, not only for the example they gave.
+
+<details>
+<summary>Red prompt, tests first (exact text)</summary>
+
+```text
+RED step, tests only, no production code changes. Goal: every error the API can return has the same shape (RFC 9457 ProblemDetail, content type application/problem+json, with "status" and "title"), including errors raised by the framework and by Spring Security, which today fall back to empty default bodies.
+
+Write the tests as @ParameterizedTest with @MethodSource, one invocation per case and a readable display name, so each case fails on its own. Follow the style of the existing controller tests. For the security cases, use whichever test setup already loads the real SecurityConfig and JwtDecoder (see OpenApiSecurityTest).
+
+Web-layer cases (authenticated where the endpoint requires it):
+1. POST /api/auth/register with malformed JSON ({"username":) -> 400.
+2. POST /api/auth/register with an empty body -> 400.
+3. PUT /api/local-pokemon/25 with "tags":"not-a-list" (wrong JSON type) -> 400.
+4. DELETE /api/pokemon (method not allowed) -> 405, and the Allow header must still be present.
+5. POST /api/auth/register with Content-Type text/plain -> 415.
+6. GET /api/does-not-exist (authenticated) -> 404.
+7. A use case throwing new RuntimeException("secret internal detail") on a public endpoint -> 500 whose body does NOT contain "secret internal detail".
+
+Security cases:
+8. GET /api/local-pokemon without a token -> 401, and the WWW-Authenticate header must start with "Bearer".
+9. GET /api/local-pokemon with a garbage bearer token -> 401, same expectations.
+
+Every case asserts: expected status, content type application/problem+json, jsonPath $.status equals the status code, jsonPath $.title not empty. Do not add a case for 403: no role rules exist, so it is unreachable.
+
+Do not touch production code. Run the new tests and show me totals plus the reason each case fails. They should fail because of missing/empty bodies or wrong content type, not because of compile errors.
+```
+
+</details>
+
+<details>
+<summary>Green prompt, implementation (exact text)</summary>
+
+```text
+GREEN step for the framework/security error tests. Make them pass with the smallest production change, and do not modify the tests.
+
+1. GlobalExceptionHandler: make it extend Spring's ResponseEntityExceptionHandler, which already turns the standard MVC exceptions (malformed body, wrong media type, method not allowed, unknown route, missing parts...) into ProblemDetail responses and keeps headers such as Allow. Keep all existing @ExceptionHandler methods as they are.
+   - The validation handler added in the previous step must not stay as a second @ExceptionHandler for MethodArgumentNotValidException (the base class already maps it and Spring would fail with an ambiguous mapping). Convert it into an override of handleMethodArgumentNotValid that returns exactly the same body as today: status 400, title "Validation failed", and the sorted "errors" list of {field, message}.
+   - Add a catch-all @ExceptionHandler(Exception.class) that logs the exception with logger.error and returns a ProblemDetail with status 500, title "Internal Server Error" and the constant detail "An unexpected error occurred." It must never include the exception message.
+
+2. Security: create a small AuthenticationEntryPoint in infrastructure/security that answers 401 with content type application/problem+json and a body with status 401, title "Unauthorized" and detail "Authentication is required or the bearer token is invalid." It must keep the WWW-Authenticate: Bearer header that Spring's default BearerTokenAuthenticationEntryPoint sets (delegating to it for the header is fine). Register it in SecurityConfig with oauth2ResourceServer(...).authenticationEntryPoint(...) so it covers both a missing token and an invalid token. Do not add an AccessDeniedHandler: there are no role rules.
+
+3. Do not touch pom.xml in this step and do not change the login behavior.
+
+Run the full suite with ./mvnw test and show me the totals. All tests must pass, including the 9 new cases and the validation cases from the previous step.
+```
+
+</details>
+
+### Entry 20: Unused dependencies (feedback fix)
+
+- **Goal:** the feedback said that some unused dependencies were left in the project. They came from the Spring Initializr selection, and I had noticed them in my final review.
+- **Tools:** Claude listed the candidates from `pom.xml` and the source, and wrote the prompt. GitHub Copilot made the edit from one prompt that required a search of `src/` before each removal.
+- **Approach:** removed `spring-boot-starter-cache` and its test starter (the cache is built directly with Caffeine), Lombok together with its two annotation-processor executions (which left the compiler plugin block empty, so it went too), and the H2 console starter. H2 moved to test scope, because only the test profile uses it. I kept the validation starter, which Entry 18 now uses, and Caffeine.
+- **What I checked (not the assistant's summary):** Copilot listed what it searched: no Spring cache API, no Lombok annotation and no H2 console configuration in `src/`, and H2 only in `application-test.yaml`. `./mvnw clean verify` passed with 160 tests; the diff was removals plus one scope line. The Docker image built from this `pom.xml` started and the collection passed (41 requests, 68 assertions, 0 failed).
+- **Problem found / fix:** nothing failed. The leftovers had been visible since the first commit. I had judged the cleanup a risk without measuring it; measured, it was one prompt and a green build.
+- **Lesson:** a dependency list is the first thing a reviewer reads. I now check `pom.xml` against the imports before I submit, and "unused" is proven with a search, not with memory.
+
+<details>
+<summary>Cleanup prompt (exact text)</summary>
+
+```text
+Cleanup step for pom.xml only. No Java changes, no test changes.
+
+Remove the dependencies that nothing in src/main or src/test uses:
+1. spring-boot-starter-cache and spring-boot-starter-cache-test (the cache is built directly with Caffeine in CachingPokemonGateway, which stays).
+2. lombok dependency, AND the two annotationProcessorPaths executions (default-compile and default-testCompile) in maven-compiler-plugin that exist only for Lombok. If nothing else is configured in that plugin block, remove the whole block.
+3. spring-boot-h2console.
+4. Change the h2 dependency scope from runtime to test, since only src/test/resources/application-test.yaml uses it. Postgres stays runtime.
+
+Keep spring-boot-starter-validation and spring-boot-starter-validation-test (now used by Bean Validation), caffeine, springdoc, wiremock, jacoco and everything else.
+
+Before removing each item, grep src/ to confirm it is really unused and tell me what you searched. Then run ./mvnw clean verify and show me the totals (tests, failures, errors) and whether the build and the JaCoCo check still pass. Show the final pom diff.
+```
+
+</details>
+
 ## 5. Exercise: Task Management API
 
 This exercise is separate from the PokeHub project. I ran it in a local scratch repository that is not published, so the generated code would not mix with the reviewed project. This section holds the prompt, representative samples, and what I found when I reviewed the output.
@@ -1020,7 +1176,7 @@ The agent also reported that the Spring Boot 4 test annotation packages differ f
 
 ## 6. Interview cheat sheet
 
-**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 141 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
+**30-second summary:** I built a Spring Boot REST API on top of PokeAPI with Clean Architecture: paginated listing, detailed view, local sync with proprietary fields, edit and delete, JWT authentication and Docker, covered by 160 automated tests. The domain and application layers are plain Java behind ports, and every story was built test-first, with the red-to-green commits visible in the history. I used Copilot to generate code from tightly scoped prompts and Claude to plan and review, and I verified each step myself with diffs, mechanical checks and the running application.
 
 **Likely questions** (answer with a real example from section 4):
 
