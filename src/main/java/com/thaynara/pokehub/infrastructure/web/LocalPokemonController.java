@@ -5,6 +5,7 @@ import com.thaynara.pokehub.application.port.in.ListLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.SyncPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.UpdateLocalPokemonUseCase;
 import com.thaynara.pokehub.application.port.in.DeleteLocalPokemonUseCase;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -60,7 +61,7 @@ public class LocalPokemonController {
     @PutMapping("/api/local-pokemon/{id}")
     public LocalPokemonResponse update(
             @PathVariable int id,
-            @RequestBody UpdateLocalPokemonRequest request) {
+            @Valid @RequestBody UpdateLocalPokemonRequest request) {
         return LocalPokemonResponse.from(updateLocalPokemonUseCase.update(
                 id, request.localizedName(), request.region(), request.tags()));
     }

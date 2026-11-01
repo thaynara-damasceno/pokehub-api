@@ -9,10 +9,14 @@ import com.thaynara.pokehub.domain.exception.LocalPokemonNotFoundException;
 import com.thaynara.pokehub.domain.exception.PokemonNotFoundException;
 import com.thaynara.pokehub.domain.exception.PokemonProviderUnavailableException;
 import com.thaynara.pokehub.domain.exception.UsernameAlreadyTakenException;
+import java.util.Comparator;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -21,6 +25,21 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ProblemDetail handleMethodArgumentNotValid(
+            MethodArgumentNotValidException exception) {
+        ProblemDetail problemDetail = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problemDetail.setTitle("Validation failed");
+        problemDetail.setProperty("errors", exception.getBindingResult().getFieldErrors().stream()
+                .sorted(Comparator.comparing(FieldError::getField)
+                        .thenComparing(FieldError::getDefaultMessage))
+                .map(error -> Map.of(
+                        "field", error.getField(),
+                        "message", error.getDefaultMessage()))
+                .toList());
+        return problemDetail;
+    }
 
     @ExceptionHandler(UsernameAlreadyTakenException.class)
     public ProblemDetail handleUsernameAlreadyTaken(UsernameAlreadyTakenException exception) {

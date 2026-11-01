@@ -1,4 +1,8 @@
 package com.thaynara.pokehub.infrastructure.web;
 
-public record RegisterRequest(String username, String password) {
+import jakarta.validation.constraints.NotBlank;
+
+public record RegisterRequest(
+        @NotBlank String username,
+        @NotBlank String password) {
 }
