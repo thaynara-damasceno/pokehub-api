@@ -10,6 +10,10 @@ import com.thaynara.pokehub.domain.exception.LocalPokemonNotFoundException;
 import com.thaynara.pokehub.domain.model.LocalPokemon;
 import com.thaynara.pokehub.infrastructure.security.SecurityConfig;
 import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -21,8 +25,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -91,6 +98,39 @@ class LocalPokemonControllerUpdateDeleteTest {
                 .andExpect(status().isOk());
 
         verify(updateLocalPokemonUseCase).update(25, "Pikachu local", null, null);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("updateValidationCases")
+    void rejectsInvalidUpdateRequest(String displayName, String requestBody, String field)
+            throws Exception {
+        when(updateLocalPokemonUseCase.update(anyInt(), any(), any(), any()))
+                .thenReturn(pokemon());
+        assertUpdateValidationError(requestBody, field);
+        verifyNoInteractions(updateLocalPokemonUseCase);
+    }
+
+    private static Stream<Arguments> updateValidationCases() {
+        return Stream.of(
+                Arguments.of("update: localizedName longer than 60", """
+                        {"localizedName":"%s","region":"Kanto","tags":[]}
+                        """.formatted("x".repeat(61)), "localizedName"),
+                Arguments.of("update: region longer than 60", """
+                        {"localizedName":"Pikachu local","region":"%s","tags":[]}
+                        """.formatted("x".repeat(61)), "region"),
+                Arguments.of("update: more than 10 tags", """
+                        {"localizedName":"Pikachu local","region":"Kanto",
+                         "tags":["tag","tag","tag","tag","tag","tag","tag","tag","tag","tag","tag"]}
+                        """, "tags"),
+                Arguments.of("update: blank tag", """
+                        {"localizedName":"Pikachu local","region":"Kanto","tags":[" "]}
+                        """, "tags[0]"),
+                Arguments.of("update: tag longer than 30", """
+                        {"localizedName":"Pikachu local","region":"Kanto","tags":["%s"]}
+                        """.formatted("x".repeat(31)), "tags[0]"),
+                Arguments.of("update: null tag", """
+                        {"localizedName":"Pikachu local","region":"Kanto","tags":[null]}
+                        """, "tags[0]"));
     }
 
     @Test
@@ -167,5 +207,18 @@ class LocalPokemonControllerUpdateDeleteTest {
         return new LocalPokemon(
                 25, "pikachu", "image-25", "description-25",
                 "Pikachu local", "Kanto", List.of("favorite"));
+    }
+
+    private void assertUpdateValidationError(String requestBody, String field)
+            throws Exception {
+        mockMvc.perform(put("/api/local-pokemon/25")
+                        .with(authenticated())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(jsonPath("$.errors[0].field").value(field))
+                .andExpect(jsonPath("$.errors[0].message").isNotEmpty());
     }
 }

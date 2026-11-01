@@ -7,6 +7,10 @@ import com.thaynara.pokehub.domain.exception.InvalidCredentialsException;
 import com.thaynara.pokehub.domain.exception.InvalidRegistrationException;
 import com.thaynara.pokehub.domain.exception.UsernameAlreadyTakenException;
 import com.thaynara.pokehub.infrastructure.security.SecurityConfig;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -18,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -88,6 +93,30 @@ class AuthControllerTest {
         assertResponseDoesNotExposeCredentials(result.andReturn().getResponse().getContentAsString());
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("registrationValidationCases")
+    void rejectsInvalidRegistrationRequest(String displayName, String requestBody, String field)
+            throws Exception {
+        assertRegistrationValidationError(requestBody, field);
+        verifyNoInteractions(registerUserUseCase);
+    }
+
+    private static Stream<Arguments> registrationValidationCases() {
+        return Stream.of(
+                Arguments.of("registration: missing username", """
+                        {"password":"%s"}
+                        """.formatted(RAW_PASSWORD), "username"),
+                Arguments.of("registration: blank username", """
+                        {"username":" ","password":"%s"}
+                        """.formatted(RAW_PASSWORD), "username"),
+                Arguments.of("registration: missing password", """
+                        {"username":"trainer"}
+                        """, "password"),
+                Arguments.of("registration: blank password", """
+                        {"username":"trainer","password":" "}
+                        """, "password"));
+    }
+
     @Test
     void logsInAndReturnsBearerTokenAndExpiration() throws Exception {
         when(authenticateUserUseCase.authenticate("trainer", RAW_PASSWORD))
@@ -128,5 +157,17 @@ class AuthControllerTest {
         assertThat(responseBody)
                 .doesNotContain(RAW_PASSWORD)
                 .doesNotContain("passwordHash");
+    }
+
+    private void assertRegistrationValidationError(String requestBody, String field)
+            throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.errors").isArray())
+                .andExpect(jsonPath("$.errors[0].field").value(field))
+                .andExpect(jsonPath("$.errors[0].message").isNotEmpty());
     }
 }
