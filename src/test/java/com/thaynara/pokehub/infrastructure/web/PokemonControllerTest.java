@@ -6,20 +6,28 @@ import com.thaynara.pokehub.domain.exception.PokemonProviderUnavailableException
 import com.thaynara.pokehub.domain.model.Pokemon;
 import com.thaynara.pokehub.domain.model.PokemonPage;
 import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -136,4 +144,23 @@ class PokemonControllerTest {
                 .andExpect(content().contentType("application/problem+json"))
                 .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'size'."));
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("methodNotAllowedCases")
+    void returnsProblemDetailsWhenMethodIsNotAllowed(String displayName, String path)
+            throws Exception {
+        MockHttpServletRequestBuilder request = delete(path);
+
+        mockMvc.perform(request)
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().exists(HttpHeaders.ALLOW))
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(405))
+                .andExpect(jsonPath("$.title").isNotEmpty());
+    }
+
+    private static Stream<Arguments> methodNotAllowedCases() {
+        return Stream.of(Arguments.of("DELETE /api/pokemon: method not allowed", "/api/pokemon"));
+    }
+
 }

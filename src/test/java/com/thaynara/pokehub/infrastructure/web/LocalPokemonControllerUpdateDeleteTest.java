@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -131,6 +133,39 @@ class LocalPokemonControllerUpdateDeleteTest {
                 Arguments.of("update: null tag", """
                         {"localizedName":"Pikachu local","region":"Kanto","tags":[null]}
                         """, "tags[0]"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("frameworkErrorCases")
+    void returnsProblemDetailsForLocalPokemonFrameworkErrors(
+            String displayName, String method, String path, String requestBody, int expectedStatus)
+            throws Exception {
+        MockHttpServletRequestBuilder request;
+        if ("PUT".equals(method)) {
+            request = put(path)
+                    .with(authenticated())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody);
+        } else {
+            request = get(path).with(authenticated());
+        }
+
+        mockMvc.perform(request)
+                .andExpect(status().is(expectedStatus))
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(expectedStatus))
+                .andExpect(jsonPath("$.title").isNotEmpty());
+    }
+
+    private static Stream<Arguments> frameworkErrorCases() {
+        return Stream.of(
+                Arguments.of("update: tags has wrong JSON type", "PUT",
+                        "/api/local-pokemon/25",
+                        """
+                        {"localizedName":"Pikachu local","region":"Kanto","tags":"not-a-list"}
+                        """, 400),
+                Arguments.of("authenticated request to unknown route", "GET",
+                        "/api/does-not-exist", "", 404));
     }
 
     @Test

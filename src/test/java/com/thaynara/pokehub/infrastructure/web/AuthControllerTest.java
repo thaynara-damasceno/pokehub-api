@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -117,6 +118,29 @@ class AuthControllerTest {
                         """, "password"));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("frameworkErrorCases")
+    void returnsProblemDetailsForRegistrationFrameworkErrors(
+            String displayName, String requestBody, String contentType, int expectedStatus)
+            throws Exception {
+        MockHttpServletRequestBuilder request = post("/api/auth/register")
+                .contentType(MediaType.valueOf(contentType))
+                .content(requestBody);
+
+        assertProblemDetails(request, expectedStatus);
+    }
+
+    private static Stream<Arguments> frameworkErrorCases() {
+        return Stream.of(
+                Arguments.of("registration: malformed JSON", "{\"username\":",
+                        "application/json", 400),
+                Arguments.of("registration: empty body", "",
+                        "application/json", 400),
+                Arguments.of("registration: unsupported content type", """
+                        {"username":"trainer","password":"correct-horse-battery"}
+                        """, "text/plain", 415));
+    }
+
     @Test
     void logsInAndReturnsBearerTokenAndExpiration() throws Exception {
         when(authenticateUserUseCase.authenticate("trainer", RAW_PASSWORD))
@@ -169,5 +193,14 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.errors").isArray())
                 .andExpect(jsonPath("$.errors[0].field").value(field))
                 .andExpect(jsonPath("$.errors[0].message").isNotEmpty());
+    }
+
+    private void assertProblemDetails(MockHttpServletRequestBuilder request, int expectedStatus)
+            throws Exception {
+        mockMvc.perform(request)
+                .andExpect(status().is(expectedStatus))
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(expectedStatus))
+                .andExpect(jsonPath("$.title").isNotEmpty());
     }
 }
