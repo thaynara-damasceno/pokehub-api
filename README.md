@@ -67,8 +67,13 @@ A Postman collection with every case (success, validation errors, 401s, sync ide
 | `PUT /api/local-pokemon/{id}` | token | Replace `localizedName`, `region` and `tags` (404 / 400) |
 | `DELETE /api/local-pokemon/{id}` | token | Remove a local Pokémon (204; 404) |
 
-Application errors use RFC 9457 `ProblemDetail`; a missing or invalid token gets a 401 from Spring Security with an empty body. A PokeAPI failure returns 502 with a fixed generic message; the
-real cause is only written to the server log.
+Every error response is an RFC 9457 `ProblemDetail` (`application/problem+json`) with at least `status` and `title`:
+
+- **400:** invalid request fields return the title `Validation failed` and an `errors` list of `{field, message}`; malformed JSON, a wrong JSON type or an empty body also return a 400 problem.
+- **401:** a missing or invalid token returns a problem body and keeps the `WWW-Authenticate: Bearer` header.
+- **404, 405, 415:** unknown paths, unsupported methods (the `Allow` header is kept) and unsupported media types, besides the "not found" cases of the domain.
+- **500:** an unexpected error returns a fixed generic message; the cause is only written to the server log.
+- **502:** a PokeAPI failure returns a fixed generic message; the real cause is only written to the server log.
 
 ### User stories and endpoints
 
@@ -97,10 +102,14 @@ domain          (records and rules, plain Java)
 - **Wiring is explicit.** Services are plain classes registered as beans in `@Configuration` classes.
 - **JPA entities are separate from the domain model.** The adapters map between them, and entity to
   domain mapping goes through the domain constructor, so validation also runs on read.
-- **Validation lives where the invariant lives.** Rules about a Pokémon's own data (name and region up to
-  60 characters, up to 10 tags of up to 30 characters, no duplicates) are in the `LocalPokemon`
-  constructor, so create and update paths cannot bypass them. Rules about how an operation is called
-  (page and size, id at least 1) are in the use case.
+- **Validation has two layers.** The request objects (`RegisterRequest`, `UpdateLocalPokemonRequest`) carry
+  Bean Validation annotations, so a bad payload is rejected at the edge with a 400 that names each field,
+  before any use case runs. The rules themselves still live where the invariant lives: a Pokémon's own
+  data (name and region up to 60 characters, up to 10 tags of up to 30 characters, no duplicates) is
+  checked again in the `LocalPokemon` constructor, so create and update paths cannot bypass it, and the
+  rules about how an operation is called (page and size, id at least 1) are in the use case.
+  `LoginRequest` has no annotations on purpose: a login without a username or password answers the same
+  generic 401 as a wrong password.
 
 ### Decisions worth knowing
 
@@ -135,4 +144,5 @@ including the prompts, what I checked, and the problems found, is in [GENAI.md](
 - Registration reveals whether a username exists; there is no rate limiting, token refresh or revocation.
 - Concurrent first-time syncs of the same Pokémon are not handled specially.
 - Concurrent registrations of the same new username are not handled specially (the existence check and the save are separate steps).
+- The length limits (60, 10 and 30) are written twice: as annotations on the request objects and in the `LocalPokemon` constructor. The domain is the source of truth; the annotations only give a clearer 400 earlier.
 - Demo credentials and the default JWT secret are committed for convenience.
